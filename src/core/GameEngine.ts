@@ -10,6 +10,11 @@ import { MovingPlatformController } from '../world/MovingPlatformController.ts';
 import { FlagpoleSequenceController } from '../world/FlagpoleSequenceController.ts';
 import { CastleMazeLoopController } from '../world/CastleMazeLoopController.ts';
 import { LevelManager } from '../world/LevelManager.ts';
+import {
+  NesAudioSynthesizer,
+  type BgmTrackId,
+} from '../audio/NesAudioSynthesizer.ts';
+import { GameScreenStateMachine } from '../ui/GameScreenStateMachine.ts';
 import { ItemManager } from '../entities/items/ItemManager.ts';
 import { EnemyManager } from '../entities/enemies/EnemyManager.ts';
 import { Mario } from '../entities/player/Mario.ts';
@@ -48,6 +53,8 @@ export class GameEngine {
   public readonly castleMazeController: CastleMazeLoopController;
   public readonly warpPipeController: WarpPipeController;
   public readonly levelManager: LevelManager;
+  public readonly audio: NesAudioSynthesizer;
+  public readonly screenState: GameScreenStateMachine;
   public readonly renderer = new Renderer();
   public mario: Mario;
   public currentLevel: LevelDefinition;
@@ -72,6 +79,8 @@ export class GameEngine {
   constructor(initialLevel: LevelDefinition = WORLD_1_1_LEVEL) {
     this.levelManager = new LevelManager();
     this.levelManager.registerLevel(initialLevel);
+    this.audio = new NesAudioSynthesizer(this.eventBus);
+    this.screenState = new GameScreenStateMachine('playing');
     this.currentLevel = initialLevel;
     this.collisionSolver = new TileCollisionSolver(this.eventBus);
     this.camera = new Camera(initialLevel.widthCols);
@@ -152,10 +161,9 @@ export class GameEngine {
         this.platformController.loadPlatforms(
           this.tilemapLoader.activeArea.platforms
         );
-        this.enemyManager.loadAreaEnemies(
-          this.currentLevel.subWorlds[targetSubworldId]?.enemies ?? [],
-          []
-        );
+        const sub = this.currentLevel.subWorlds[targetSubworldId];
+        this.enemyManager.loadAreaEnemies(sub?.enemies ?? [], []);
+        this.audio.playBgm((sub?.music as BgmTrackId) ?? 'coin-heaven');
         this.mario.x = 2 * TILE_SIZE;
         this.mario.y = 10 * TILE_SIZE;
         this.mario.vxSub = 0;
@@ -174,6 +182,7 @@ export class GameEngine {
           this.currentLevel.enemies,
           this.currentLevel.fireBars
         );
+        this.audio.playBgm((this.currentLevel.music as BgmTrackId) ?? 'overworld');
         this.flagpoleController.reset(
           this.currentLevel.goal.flagpoleCol ?? 198,
           this.currentLevel.goal.castleDoorCol ?? 204
@@ -181,6 +190,7 @@ export class GameEngine {
       } else {
         const sub = this.currentLevel.subWorlds[areaId];
         this.enemyManager.loadAreaEnemies(sub?.enemies ?? [], []);
+        this.audio.playBgm((sub?.music as BgmTrackId) ?? 'underground');
         if (areaId.endsWith('-exit')) {
           this.flagpoleController.reset(29, 35);
         }
@@ -200,6 +210,13 @@ export class GameEngine {
     this.eventBus.on('bridge-collapse-completed', () => {
       this.castleClearTimerFrames = 120;
     });
+  }
+
+  public enterTitleScreen(): void {
+    this.screenState.updateTopScore(this.score);
+    this.screenState.enterTitleScreen();
+    this.loadLevelById('1-1', false);
+    this.audio.stopBgm();
   }
 
   public loadLevelById(levelId: string, keepPowerState = false): boolean {
@@ -222,10 +239,17 @@ export class GameEngine {
     this.timerTickCounter = 0;
     this.castleClearTimerFrames = 0;
 
+    // In Second Quest (Hard Mode after beating 8-4), all Goombas become Buzzy Beetles!
+    const stageEnemies = this.screenState.newQuestUnlocked
+      ? level.enemies.map((e) =>
+          e.type === 'goomba' ? { ...e, type: 'buzzy-beetle' as const } : e
+        )
+      : level.enemies;
+
     this.itemManager.clearAll();
     this.warpPipeController.reset();
     this.tilemapLoader.loadLevel(level);
-    this.enemyManager.loadAreaEnemies(level.enemies, level.fireBars);
+    this.enemyManager.loadAreaEnemies(stageEnemies, level.fireBars);
     this.platformController.loadPlatforms(level.platforms);
     this.flagpoleController.reset(
       level.goal.flagpoleCol ?? 198,
@@ -244,6 +268,115 @@ export class GameEngine {
     if (savedState !== 'small') {
       this.mario.setPowerState(savedState, false);
     }
+
+    this.audio.setHurryUp(false);
+    if (this.screenState.state === 'playing') {
+      this.audio.playBgm((level.music as BgmTrackId) ?? 'overworld');
+    }
+  }
+
+  private stepNonPlayingScreenState(): boolean {
+    const st = this.screenState.state;
+    if (st === 'playing') return false;
+
+    if (st === 'title') {
+      if (this.input.isJustPressed('select') || this.input.isJustPressed('down')) {
+        this.screenState.selectedPlayerCount =
+          this.screenState.selectedPlayerCount === 1 ? 2 : 1;
+      }
+      if (this.screenState.newQuestUnlocked && this.input.isJustPressed('runB')) {
+        const nextW = ((this.screenState.selectedStartWorld % 8) + 1) as
+          | 1
+          | 2
+          | 3
+          | 4
+          | 5
+          | 6
+          | 7
+          | 8;
+        this.screenState.selectedStartWorld = nextW;
+      }
+      if (this.input.isJustPressed('start')) {
+        this.screenState.clearAttractDemoInputs(this.input);
+        this.score = 0;
+        this.coins = 0;
+        this.lives = 3;
+        const startId = `${this.screenState.selectedStartWorld}-1`;
+        this.loadLevelById(startId, false);
+        this.screenState.enterWorldIntro(120);
+        return true;
+      }
+
+      // Attract-Mode Demo after 180 frames on the Title Screen
+      this.screenState.titleIdleFrames++;
+      if (this.screenState.titleIdleFrames >= 180) {
+        this.screenState.demoActive = true;
+        this.screenState.applyAttractDemoInputs(
+          this.input,
+          this.screenState.titleIdleFrames - 180
+        );
+        this.input.pollFrame();
+        this.mario.update(this.camera.x, this.camera);
+        this.camera.followTargetRightOnly(this.mario.x);
+        this.itemManager.update(this.mario);
+        this.enemyManager.update(this.mario, this.camera);
+        this.collisionSolver.updateVisualEffects();
+
+        if (!this.mario.alive || this.screenState.titleIdleFrames > 900) {
+          this.screenState.clearAttractDemoInputs(this.input);
+          this.enterTitleScreen();
+        }
+      }
+      return true;
+    }
+
+    if (st === 'world-intro') {
+      this.screenState.stateTimerFrames--;
+      if (this.screenState.stateTimerFrames <= 0) {
+        this.screenState.enterPlaying();
+        this.audio.playBgm(
+          (this.currentLevel.music as BgmTrackId) ?? 'overworld'
+        );
+      }
+      return true;
+    }
+
+    if (st === 'time-up') {
+      this.screenState.stateTimerFrames--;
+      if (this.screenState.stateTimerFrames <= 0) {
+        if (this.lives > 0) {
+          this.loadLevel(this.currentLevel, false);
+          this.screenState.enterWorldIntro(120);
+        } else {
+          this.screenState.enterGameOver(180);
+          this.audio.playBgm('game-over', true);
+        }
+      }
+      return true;
+    }
+
+    if (st === 'game-over') {
+      this.audio.stepFrame();
+      this.screenState.stateTimerFrames--;
+      if (this.screenState.stateTimerFrames <= 0) {
+        this.enterTitleScreen();
+      }
+      return true;
+    }
+
+    if (st === 'quest-complete') {
+      this.audio.stepFrame();
+      this.screenState.stateTimerFrames--;
+      if (
+        this.screenState.stateTimerFrames <= 0 ||
+        this.input.isJustPressed('start')
+      ) {
+        this.enterTitleScreen();
+      }
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -252,8 +385,13 @@ export class GameEngine {
   public stepPhysicsTick(): void {
     this.input.pollFrame();
 
+    if (this.stepNonPlayingScreenState()) {
+      return;
+    }
+
     if (this.input.isJustPressed('start')) {
       this.isPaused = !this.isPaused;
+      this.audio.playSfx('pause');
     }
     if (this.input.isJustPressed('debugReset')) {
       this.loadLevel(this.currentLevel, false);
@@ -273,6 +411,26 @@ export class GameEngine {
     }
 
     if (this.isPaused) return;
+
+    this.screenState.updateTopScore(this.score);
+
+    // Synchronize Starman Invincibility BGM vs Area BGM
+    if (this.mario.alive && !this.mario.flagpoleSliding && this.castleClearTimerFrames === 0) {
+      if (this.mario.starmanTimer > 0 && this.audio.currentTrack !== 'starman') {
+        this.audio.playBgm('starman');
+      } else if (
+        this.mario.starmanTimer === 0 &&
+        this.audio.currentTrack === 'starman'
+      ) {
+        const areaId = this.tilemapLoader.activeArea.areaId;
+        const areaMusic =
+          areaId === 'main'
+            ? this.currentLevel.music
+            : this.currentLevel.subWorlds[areaId]?.music ?? 'underground';
+        this.audio.playBgm((areaMusic as BgmTrackId) ?? 'overworld');
+      }
+    }
+    this.audio.stepFrame();
 
     // 1. Check / Advance Warp Pipe Cutscene (suspends standard Mario physics while entering/exiting pipe)
     const inPipeCutscene = this.warpPipeController.update(
@@ -337,7 +495,7 @@ export class GameEngine {
       // 4.5 Update all Enemies, Projectiles, Rotating Fire-Bars & Castle Bridge Collapse
       this.enemyManager.update(this.mario, this.camera);
 
-      // 4.6 Handle Castle Bridge Collapse Victory Sequence (walk to Toad / Peach -> next World)
+      // 4.6 Handle Castle Bridge Collapse Victory Sequence (walk to Toad / Peach -> next World or Quest Complete)
       if (this.castleClearTimerFrames > 0) {
         this.castleClearTimerFrames--;
         if (this.castleClearTimerFrames === 0) {
@@ -345,7 +503,11 @@ export class GameEngine {
             levelId: this.currentLevel.id,
             fireworksLaunched: 0,
           });
-          this.advanceToNextLevel(true);
+          if (this.currentLevel.goal.rescueNpc === 'princess-peach') {
+            this.screenState.enterQuestComplete(240);
+          } else {
+            this.advanceToNextLevel(true);
+          }
           return;
         }
       }
@@ -360,6 +522,9 @@ export class GameEngine {
       if (this.timerTickCounter >= 24) {
         this.timerTickCounter = 0;
         this.timeRemaining = Math.max(0, this.timeRemaining - 1);
+        if (this.timeRemaining === 100) {
+          this.audio.setHurryUp(true);
+        }
         if (this.timeRemaining === 0) {
           this.mario.killPlayer('time-up');
         }
@@ -398,6 +563,8 @@ export class GameEngine {
       this.warpPipeController.isActive(),
       hud
     );
+
+    this.screenState.renderOverlay(ctx, this.currentLevel.id, this.lives);
   }
 
   public startLoop(ctx: CanvasRenderingContext2D): void {

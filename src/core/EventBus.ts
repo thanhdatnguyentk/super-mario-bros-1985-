@@ -134,6 +134,9 @@ export interface GameEventMap {
     areaId: string;
     exitCol: number;
   };
+  'player-jumped': {
+    isSuperOrFire: boolean;
+  };
 }
 
 type EventListener<K extends keyof GameEventMap> = (

@@ -135,6 +135,14 @@ export class EnemyManager {
   }
 
   private startBridgeCollapse(axeCol: number, axeRow: number): void {
+    // Ensure any pending Bowser near the bridge is spawned so he falls when the bridge collapses
+    for (const entry of this.pendingSpawns) {
+      if (!entry.activated && entry.spawn.type === 'bowser') {
+        entry.activated = true;
+        this.enemies.push(new EnemyEntity(entry.spawn, this.collisionSolver));
+      }
+    }
+
     // Clear any bridge chain ('R') near the axe
     for (let r = Math.max(0, axeRow - 2); r <= Math.min(14, axeRow + 2); r++) {
       for (let c = Math.max(0, axeCol - 2); c <= axeCol; c++) {

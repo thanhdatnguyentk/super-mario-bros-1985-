@@ -421,6 +421,9 @@ export class Mario extends Entity {
         this.vySub = NES_PHYSICS.SWIM_IMPULSE_VY;
         this.grounded = false;
         this.isSwimming = true;
+        this.eventBus.emit('player-jumped', {
+          isSuperOrFire: false,
+        });
       }
       const swimGravity =
         jumpHeld && this.vySub < 0
@@ -470,6 +473,9 @@ export class Mario extends Entity {
       this.vySub = this.currentJumpBracket.initialVySub;
       this.grounded = false;
       this.jumpButtonHeld = true;
+      this.eventBus.emit('player-jumped', {
+        isSuperOrFire: this.powerState !== 'small',
+      });
       return;
     }
 

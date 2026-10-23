@@ -56,6 +56,16 @@ function bootstrap(): void {
     });
   };
 
+  bindActionBtn('btn-title', () => engine.enterTitleScreen());
+  const btnAudio = document.getElementById('btn-audio');
+  bindActionBtn('btn-audio', () => {
+    engine.audio.muted = !engine.audio.muted;
+    if (btnAudio) {
+      btnAudio.textContent = engine.audio.muted
+        ? '8-Bit Audio: OFF'
+        : '8-Bit Audio: ON';
+    }
+  });
   bindActionBtn('btn-small', () => engine.mario.setPowerState('small', false));
   bindActionBtn('btn-super', () => engine.mario.setPowerState('super', true));
   bindActionBtn('btn-fire', () => engine.mario.setPowerState('fire', true));
