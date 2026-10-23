@@ -23,7 +23,7 @@ describe('Phase 5 (Part 1) — LevelManager & World 1 + World 2 Complete Data Ve
   it('registers all 8 stages of World 1 & World 2 with valid 15-row matrices and sequential progression', () => {
     const manager = new LevelManager();
     const ids = manager.getRegisteredLevelIds();
-    assert.equal(ids.join(','), '1-1,1-2,1-3,1-4,2-1,2-2,2-3,2-4');
+    assert.equal(ids.slice(0, 8).join(','), '1-1,1-2,1-3,1-4,2-1,2-2,2-3,2-4');
 
     for (const level of [...WORLD_1_LEVELS, ...WORLD_2_LEVELS]) {
       assert.equal(level.tileMatrix.length, 15);
@@ -55,7 +55,7 @@ describe('Phase 5 (Part 1) — LevelManager & World 1 + World 2 Complete Data Ve
     assert.equal(manager.getNextLevelId('2-1'), '2-2');
     assert.equal(manager.getNextLevelId('2-2'), '2-3');
     assert.equal(manager.getNextLevelId('2-3'), '2-4');
-    assert.equal(manager.getNextLevelId('2-4'), '1-1');
+    assert.equal(manager.getNextLevelId('2-4'), '3-1');
   });
 
   it('verifies World 1-2 underground layout, 3-pipe Warp Zone (Worlds 4, 3, 2), and Piranha Plant suppression', () => {

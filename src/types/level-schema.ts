@@ -19,6 +19,7 @@ export type BiomeType =
 export type BgSceneryPreset =
   | 'hills-clouds-bushes'
   | 'trees-fences-clouds'
+  | 'mushroom-platforms'
   | 'night-trees'
   | 'night-snow-trees'
   | 'castle-stone'

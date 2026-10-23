@@ -3,6 +3,8 @@ import type { LevelDefinition, LevelId } from '../types/level-schema.ts';
 import type { ActiveAreaDescriptor } from './TilemapLoader.ts';
 import { WORLD_1_LEVELS } from '../levels/World1Levels.ts';
 import { WORLD_2_LEVELS } from '../levels/World2Levels.ts';
+import { WORLD_3_LEVELS } from '../levels/World3Levels.ts';
+import { WORLD_4_LEVELS } from '../levels/World4Levels.ts';
 
 export const CANONICAL_STAGE_ORDER: readonly LevelId[] = [
   '1-1',
@@ -58,7 +60,12 @@ export class LevelManager {
   private readonly registry = new Map<LevelId, LevelDefinition>();
 
   constructor(initialLevels?: LevelDefinition[]) {
-    const defaults = initialLevels ?? [...WORLD_1_LEVELS, ...WORLD_2_LEVELS];
+    const defaults = initialLevels ?? [
+      ...WORLD_1_LEVELS,
+      ...WORLD_2_LEVELS,
+      ...WORLD_3_LEVELS,
+      ...WORLD_4_LEVELS,
+    ];
     this.registerLevels(defaults);
   }
 
