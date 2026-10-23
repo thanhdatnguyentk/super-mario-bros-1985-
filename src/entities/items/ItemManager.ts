@@ -124,11 +124,22 @@ export class ItemManager {
         continue;
       }
 
+      if (item.kind === 'vine') {
+        if (
+          mario.alive &&
+          !mario.isClimbingVine &&
+          (!mario.grounded || mario.vySub < 0) &&
+          aabbIntersects(marioBox, item.getAABB())
+        ) {
+          mario.latchOntoVine(item.sourceCol, item.targetSubworldId);
+        }
+        continue;
+      }
+
       // Mario can collect items once they have emerged at least halfway or are active
       const canCollect =
-        item.kind !== 'vine' &&
-        (item.lifecycleState === 'active' ||
-          item.y <= item.sourceRow * TILE_SIZE - 8);
+        item.lifecycleState === 'active' ||
+        item.y <= item.sourceRow * TILE_SIZE - 8;
 
       if (mario.alive && canCollect && aabbIntersects(marioBox, item.getAABB())) {
         this.collectItem(mario, item);

@@ -103,6 +103,28 @@ export interface GameEventMap {
   'bridge-collapse-completed': {
     axeCol: number;
   };
+  'stage-cleared': {
+    levelId: string;
+    fireworksLaunched: number;
+  };
+  'firework-exploded': {
+    worldX: number;
+    worldY: number;
+    points: number;
+  };
+  'maze-checkpoint-result': {
+    checkCol: number;
+    passed: boolean;
+    rewoundToCol?: number;
+  };
+  'pulley-rope-snapped': {
+    platformId: string;
+    partnerId: string;
+    points: number;
+  };
+  'vine-climbed-top': {
+    targetSubworldId: string;
+  };
 }
 
 type EventListener<K extends keyof GameEventMap> = (

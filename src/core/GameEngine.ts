@@ -6,6 +6,9 @@ import { Camera } from './Camera.ts';
 import { TileCollisionSolver } from '../physics/TileCollisionSolver.ts';
 import { TilemapLoader } from '../world/TilemapLoader.ts';
 import { WarpPipeController } from '../world/WarpPipeController.ts';
+import { MovingPlatformController } from '../world/MovingPlatformController.ts';
+import { FlagpoleSequenceController } from '../world/FlagpoleSequenceController.ts';
+import { CastleMazeLoopController } from '../world/CastleMazeLoopController.ts';
 import { ItemManager } from '../entities/items/ItemManager.ts';
 import { EnemyManager } from '../entities/enemies/EnemyManager.ts';
 import { Mario } from '../entities/player/Mario.ts';
@@ -39,6 +42,9 @@ export class GameEngine {
   public readonly tilemapLoader: TilemapLoader;
   public readonly itemManager: ItemManager;
   public readonly enemyManager: EnemyManager;
+  public readonly platformController: MovingPlatformController;
+  public readonly flagpoleController: FlagpoleSequenceController;
+  public readonly castleMazeController: CastleMazeLoopController;
   public readonly warpPipeController: WarpPipeController;
   public readonly renderer = new Renderer();
   public mario: Mario;
@@ -70,6 +76,12 @@ export class GameEngine {
     );
     this.itemManager = new ItemManager(this.eventBus, this.collisionSolver);
     this.enemyManager = new EnemyManager(this.eventBus, this.collisionSolver);
+    this.platformController = new MovingPlatformController(
+      this.eventBus,
+      this.collisionSolver
+    );
+    this.flagpoleController = new FlagpoleSequenceController(this.eventBus);
+    this.castleMazeController = new CastleMazeLoopController(this.eventBus);
     this.warpPipeController = new WarpPipeController(
       this.tilemapLoader,
       this.itemManager,
@@ -124,6 +136,27 @@ export class GameEngine {
         this.lives++;
       }
     });
+
+    this.eventBus.on('pulley-rope-snapped', ({ points }) => {
+      this.score += points;
+    });
+
+    this.eventBus.on('vine-climbed-top', ({ targetSubworldId }) => {
+      if (this.tilemapLoader.switchArea(targetSubworldId, 2)) {
+        this.platformController.loadPlatforms(
+          this.tilemapLoader.activeArea.platforms
+        );
+        this.enemyManager.loadAreaEnemies(
+          this.currentLevel.subWorlds[targetSubworldId]?.enemies ?? [],
+          []
+        );
+        this.mario.x = 2 * TILE_SIZE;
+        this.mario.y = 10 * TILE_SIZE;
+        this.mario.vxSub = 0;
+        this.mario.vySub = 0;
+        this.mario.grounded = true;
+      }
+    });
   }
 
   public loadLevel(level: LevelDefinition, keepPowerState = false): void {
@@ -136,6 +169,12 @@ export class GameEngine {
     this.warpPipeController.reset();
     this.tilemapLoader.loadLevel(level);
     this.enemyManager.loadAreaEnemies(level.enemies, level.fireBars);
+    this.platformController.loadPlatforms(level.platforms);
+    this.flagpoleController.reset(
+      level.goal.flagpoleCol ?? 198,
+      level.goal.castleDoorCol ?? 204
+    );
+    this.castleMazeController.loadCheckpoints(level.castleMazeLoop ?? []);
 
     this.mario = new Mario(
       level.playerStart.col * TILE_SIZE,
@@ -188,6 +227,14 @@ export class GameEngine {
       // 2. Update Mario with one-way camera left-edge boundary clamp
       this.mario.update(this.camera.x, this.camera);
 
+      // 2.5 Update Moving Platforms / Lifts & Scale-Balance Pulleys
+      this.platformController.update(this.mario);
+
+      // 2.6 Update Looping Castle Maze Checkpoints (Worlds 4-4, 7-4, 8-4)
+      if (this.tilemapLoader.activeArea.areaId === 'main') {
+        this.castleMazeController.update(this.mario, this.camera);
+      }
+
       // 3. Advance one-way camera rightward when Mario passes scroll threshold (unless room is scrollLocked)
       if (
         this.mario.alive &&
@@ -196,6 +243,15 @@ export class GameEngine {
       ) {
         this.camera.followTargetRightOnly(this.mario.x);
       }
+
+      // 3.5 Update Flagpole End-of-Level Sequence (Banner Slide, Castle Door Walk-in, Time Tally & 1/3/6 Fireworks)
+      this.flagpoleController.update(this.mario, this.currentLevel.id, {
+        getTimeRemaining: () => this.timeRemaining,
+        decrementTimeAndAddScore: (timeDelta, scoreDelta) => {
+          this.timeRemaining = Math.max(0, this.timeRemaining - timeDelta);
+          this.score += scoreDelta;
+        },
+      });
 
       // 4. Update all spawned Power-Up Items, Vines & Spinning Block Coins
       this.itemManager.update(this.mario);
@@ -219,15 +275,11 @@ export class GameEngine {
       }
     }
 
-    // 7. Auto-respawn after death fall or castle walk-in
+    // 7. Auto-respawn after death fall or stage-cleared completion
     if (!this.mario.alive && this.mario.y > 320) {
       this.lives = Math.max(1, this.lives - 1);
       this.loadLevel(this.currentLevel, false);
-    } else if (
-      this.mario.flagpoleSliding &&
-      this.currentLevel.goal.castleDoorCol &&
-      this.mario.x >= this.currentLevel.goal.castleDoorCol * TILE_SIZE
-    ) {
+    } else if (this.flagpoleController.phase === 'completed') {
       this.loadLevel(this.currentLevel, true);
     }
   }
@@ -249,6 +301,8 @@ export class GameEngine {
       this.collisionSolver,
       this.itemManager,
       this.enemyManager,
+      this.platformController,
+      this.flagpoleController,
       this.mario,
       this.warpPipeController.isActive(),
       hud

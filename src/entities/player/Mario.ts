@@ -65,10 +65,18 @@ export class Mario extends Entity {
   public transformTimer = 0;
   public fireThrowPoseTimer = 0;
 
-  // Flagpole & Death Sequence State
+  // Flagpole, Vine Climbing & Castle Entry State
   public flagpoleSliding = false;
   public flagpoleCol = 0;
+  public hiddenInCastle = false;
+  public isClimbingVine = false;
+  public vineCol = 0;
+  public vineTargetSubworldId?: string;
   public deathTimer = 0;
+
+  // Underwater Air Bubbles
+  public readonly bubbles: Array<{ x: number; y: number }> = [];
+  private bubbleSpawnTimer = 40;
 
   // Animation accumulators
   private walkAnimSubCounter = 0;
@@ -245,6 +253,12 @@ export class Mario extends Entity {
       return;
     }
 
+    // Handle Beanstalk / Vine Climbing Sequence
+    if (this.isClimbingVine) {
+      this.updateVineClimb();
+      return;
+    }
+
     // 1. Crouch handling (Super / Fire only)
     const isTall = this.powerState === 'super' || this.powerState === 'fire';
     if (isTall && this.grounded) {
@@ -413,6 +427,39 @@ export class Mario extends Entity {
           ? NES_PHYSICS.SWIM_HOLD_GRAVITY
           : NES_PHYSICS.SWIM_RELEASE_GRAVITY;
       this.vySub = applyGravityAndClampSub(this.vySub, swimGravity);
+
+      // Authentic NES Underwater Surface Ceiling Cap (y >= 24px)
+      if (this.y < 24) {
+        this.y = 24;
+        if (this.vySub < 0) {
+          this.vySub = 0;
+        }
+      }
+
+      // Authentic NES Underwater Whirlpool Pit Suction (over bottomless pits at rows 13..14)
+      const centerCol = Math.floor((this.x + 8) / TILE_SIZE);
+      if (
+        !this.collisionSolver.isSolidTile(centerCol, 13) &&
+        !this.collisionSolver.isSolidTile(centerCol, 14)
+      ) {
+        this.vySub += 0x000a;
+      }
+
+      // Update rising underwater air bubbles
+      this.bubbleSpawnTimer--;
+      if (this.bubbleSpawnTimer <= 0) {
+        this.bubbleSpawnTimer = 45;
+        this.bubbles.push({
+          x: this.x + (this.facing === 1 ? 12 : 2),
+          y: this.y + 4,
+        });
+      }
+      for (let i = this.bubbles.length - 1; i >= 0; i--) {
+        this.bubbles[i].y -= 0.75;
+        if (this.bubbles[i].y <= 24) {
+          this.bubbles.splice(i, 1);
+        }
+      }
       return;
     }
 
@@ -457,6 +504,60 @@ export class Mario extends Entity {
       worldY: spawnY,
       direction: this.facing,
     });
+  }
+
+  public latchOntoVine(vineCol: number, targetSubworldId?: string): void {
+    if (this.isClimbingVine) return;
+    this.isClimbingVine = true;
+    this.vineCol = vineCol;
+    this.vineTargetSubworldId = targetSubworldId;
+    this.vxSub = 0;
+    this.vySub = 0;
+    this.grounded = false;
+    this.x = vineCol * TILE_SIZE - 4;
+    this.facing = 1;
+    this.pose = 'climb-1';
+  }
+
+  private updateVineClimb(): void {
+    const up = this.input.isHeld('up');
+    const down = this.input.isHeld('down');
+    const jumpJustPressed = this.input.isJustPressed('jumpA');
+
+    if (jumpJustPressed) {
+      this.isClimbingVine = false;
+      this.vySub = -pxToSub(3.5);
+      this.pose = 'jump';
+      return;
+    }
+
+    if (up) {
+      this.ySub -= pxToSub(1.0);
+      this.pose = Math.floor(this.y / 6) % 2 === 0 ? 'climb-1' : 'climb-2';
+      if (this.y <= 16) {
+        this.y = 16;
+        if (this.vineTargetSubworldId) {
+          const targetId = this.vineTargetSubworldId;
+          this.isClimbingVine = false;
+          this.eventBus.emit('vine-climbed-top', {
+            targetSubworldId: targetId,
+          });
+        }
+      }
+    } else if (down) {
+      this.ySub += pxToSub(1.0);
+      this.pose = Math.floor(this.y / 6) % 2 === 0 ? 'climb-1' : 'climb-2';
+      const box = this.getAABB();
+      if (
+        this.collisionSolver.isSolidAtPixel(
+          box.x + box.width * 0.5,
+          box.y + box.height + 1
+        )
+      ) {
+        this.isClimbingVine = false;
+        this.grounded = true;
+      }
+    }
   }
 
   private startFlagpoleSlide(col: number): void {
@@ -552,6 +653,20 @@ export class Mario extends Entity {
     // Render active fireballs
     for (const fb of this.fireballs) {
       fb.render(ctx, camera);
+    }
+
+    // Render underwater air bubbles
+    if (this.underwaterMode) {
+      ctx.fillStyle = '#FCFCFC';
+      for (const b of this.bubbles) {
+        const bx = Math.round(camera.worldToScreenX(b.x));
+        const by = Math.round(camera.worldToScreenY(b.y));
+        ctx.fillRect(bx, by, 3, 3);
+      }
+    }
+
+    if (this.hiddenInCastle) {
+      return;
     }
 
     // Blink every 2 frames during post-damage invulnerability

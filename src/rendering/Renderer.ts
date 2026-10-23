@@ -12,6 +12,8 @@ import type { TileCollisionSolver } from '../physics/TileCollisionSolver.ts';
 import type { Mario } from '../entities/player/Mario.ts';
 import type { ItemManager } from '../entities/items/ItemManager.ts';
 import type { EnemyManager } from '../entities/enemies/EnemyManager.ts';
+import type { MovingPlatformController } from '../world/MovingPlatformController.ts';
+import type { FlagpoleSequenceController } from '../world/FlagpoleSequenceController.ts';
 import type { ActiveAreaDescriptor } from '../world/TilemapLoader.ts';
 
 export interface HudTelemetryState {
@@ -33,6 +35,8 @@ export class Renderer {
     collisionSolver: TileCollisionSolver,
     itemManager: ItemManager,
     enemyManager: EnemyManager,
+    platformController: MovingPlatformController,
+    flagpoleController: FlagpoleSequenceController,
     mario: Mario,
     pipeCutsceneActive: boolean,
     hud: HudTelemetryState
@@ -88,7 +92,9 @@ export class Renderer {
       this.renderGoalFlagAndCastle(ctx, camera, level.goal.flagpoleCol, mario);
     }
 
-    // 5. Render Active Power-Up Items, Spinning Block Coins, Enemies, Projectiles & Fire-Bars
+    // 5. Render Active Power-Up Items, Spinning Block Coins, Moving Platforms, Enemies, Projectiles & Fire-Bars
+    platformController.render(ctx, camera);
+    flagpoleController.renderEffects(ctx, camera);
     itemManager.renderInFrontOfTiles(ctx, camera);
     enemyManager.renderInFrontOfTiles(ctx, camera);
 
