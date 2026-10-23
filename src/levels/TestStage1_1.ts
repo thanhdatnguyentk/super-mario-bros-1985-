@@ -139,11 +139,6 @@ function buildWorld1_1Matrix(widthCols: number): string[] {
   return grid.map((row) => row.join(''));
 }
 
-/**
- * Authentic World 1-1 Underground Coin Bonus Room ('1-1-bonus', 16×15 tiles).
- * Features left brick wall, ceiling bricks, 3-tier brick platform, 19 floating coins,
- * and right-side horizontal exit pipe leading back to World 1-1 Col 163 Pipe #5.
- */
 function buildWorld1_1BonusRoomMatrix(): string[] {
   const widthCols = 16;
   const grid: string[][] = Array.from({ length: GRID_ROWS }, () =>
@@ -156,13 +151,11 @@ function buildWorld1_1BonusRoomMatrix(): string[] {
     }
   };
 
-  // 1. Floor (Rows 13 & 14)
   for (let c = 0; c < widthCols; c++) {
     setTile(c, 13, '#');
     setTile(c, 14, '#');
   }
 
-  // 2. Left Brick Wall (Col 0, Rows 2..12) & Ceiling Brick Bar (Row 1, Cols 4..10)
   for (let r = 2; r <= 12; r++) {
     setTile(0, r, 'B');
   }
@@ -170,14 +163,12 @@ function buildWorld1_1BonusRoomMatrix(): string[] {
     setTile(c, 1, 'B');
   }
 
-  // 3. Central 7×3 Brick Platform (Cols 4..10, Rows 10..12)
   for (let r = 10; r <= 12; r++) {
     for (let c = 4; c <= 10; c++) {
       setTile(c, r, 'B');
     }
   }
 
-  // 4. 19 Floating Coins in 3 rows (Rows 5, 7, 9 above the central brick platform)
   for (let c = 5; c <= 9; c++) {
     setTile(c, 5, 'C');
   }
@@ -186,7 +177,6 @@ function buildWorld1_1BonusRoomMatrix(): string[] {
     setTile(c, 9, 'C');
   }
 
-  // 5. Right-side Exit Pipe (Horizontal Mouth at Col 13, Rows 11..12 + Vertical Shaft at Cols 14..15, Rows 2..12)
   setTile(13, 11, 'P');
   setTile(13, 12, '[');
   for (let r = 2; r <= 12; r++) {

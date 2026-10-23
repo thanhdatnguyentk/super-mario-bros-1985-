@@ -9,6 +9,7 @@ import { WarpPipeController } from '../world/WarpPipeController.ts';
 import { MovingPlatformController } from '../world/MovingPlatformController.ts';
 import { FlagpoleSequenceController } from '../world/FlagpoleSequenceController.ts';
 import { CastleMazeLoopController } from '../world/CastleMazeLoopController.ts';
+import { LevelManager } from '../world/LevelManager.ts';
 import { ItemManager } from '../entities/items/ItemManager.ts';
 import { EnemyManager } from '../entities/enemies/EnemyManager.ts';
 import { Mario } from '../entities/player/Mario.ts';
@@ -46,9 +47,11 @@ export class GameEngine {
   public readonly flagpoleController: FlagpoleSequenceController;
   public readonly castleMazeController: CastleMazeLoopController;
   public readonly warpPipeController: WarpPipeController;
+  public readonly levelManager: LevelManager;
   public readonly renderer = new Renderer();
   public mario: Mario;
   public currentLevel: LevelDefinition;
+  public lastWarpRequestId: string | null = null;
 
   public score = 0;
   public coins = 0;
@@ -62,10 +65,13 @@ export class GameEngine {
   private lastTimestampMs = 0;
   private rafId: number | null = null;
   private timerTickCounter = 0;
+  private castleClearTimerFrames = 0;
   private measuredFps = 60;
   private onTelemetryUpdate?: (telemetry: LivePhysicsTelemetry) => void;
 
   constructor(initialLevel: LevelDefinition = WORLD_1_1_LEVEL) {
+    this.levelManager = new LevelManager();
+    this.levelManager.registerLevel(initialLevel);
     this.currentLevel = initialLevel;
     this.collisionSolver = new TileCollisionSolver(this.eventBus);
     this.camera = new Camera(initialLevel.widthCols);
@@ -157,13 +163,63 @@ export class GameEngine {
         this.mario.grounded = true;
       }
     });
+
+    this.eventBus.on('area-switched', ({ areaId }) => {
+      this.platformController.loadPlatforms(
+        this.tilemapLoader.activeArea.platforms
+      );
+      if (areaId === 'main') {
+        this.enemyManager.loadAreaEnemies(
+          this.currentLevel.enemies,
+          this.currentLevel.fireBars
+        );
+        this.flagpoleController.reset(
+          this.currentLevel.goal.flagpoleCol ?? 198,
+          this.currentLevel.goal.castleDoorCol ?? 204
+        );
+      } else {
+        const sub = this.currentLevel.subWorlds[areaId];
+        this.enemyManager.loadAreaEnemies(sub?.enemies ?? [], []);
+        if (areaId.endsWith('-exit')) {
+          this.flagpoleController.reset(29, 35);
+        }
+      }
+    });
+
+    this.eventBus.on('warp-zone-entered', ({ requestedLevelId }) => {
+      this.lastWarpRequestId = requestedLevelId;
+      const resolved = this.levelManager.resolveWarpTarget(
+        `warp:${requestedLevelId}`
+      );
+      if (resolved) {
+        this.loadLevel(resolved.level, true);
+      }
+    });
+
+    this.eventBus.on('bridge-collapse-completed', () => {
+      this.castleClearTimerFrames = 120;
+    });
+  }
+
+  public loadLevelById(levelId: string, keepPowerState = false): boolean {
+    const level = this.levelManager.getLevel(levelId);
+    if (!level) return false;
+    this.loadLevel(level, keepPowerState);
+    return true;
+  }
+
+  public advanceToNextLevel(keepPowerState = true): void {
+    const nextLevel = this.levelManager.getNextLevel(this.currentLevel.id);
+    this.loadLevel(nextLevel, keepPowerState);
   }
 
   public loadLevel(level: LevelDefinition, keepPowerState = false): void {
     const savedState = keepPowerState ? this.mario.powerState : 'small';
+    this.levelManager.registerLevel(level);
     this.currentLevel = level;
     this.timeRemaining = level.timeLimit;
     this.timerTickCounter = 0;
+    this.castleClearTimerFrames = 0;
 
     this.itemManager.clearAll();
     this.warpPipeController.reset();
@@ -244,7 +300,28 @@ export class GameEngine {
         this.camera.followTargetRightOnly(this.mario.x);
       }
 
-      // 3.5 Update Flagpole End-of-Level Sequence (Banner Slide, Castle Door Walk-in, Time Tally & 1/3/6 Fireworks)
+      // 3.5 Suppress Warp Zone Piranha Plants once Warp Zone is revealed
+      if (
+        this.levelManager.isWarpZoneRevealed(
+          this.tilemapLoader.activeArea,
+          this.camera.x,
+          this.mario.x
+        ) &&
+        this.tilemapLoader.activeArea.warpZone
+      ) {
+        const minWarpCol =
+          (this.tilemapLoader.activeArea.warpZone.pipes[0]?.col ?? 138) - 2;
+        for (const enemy of this.enemyManager.enemies) {
+          if (
+            enemy.type === 'piranha-plant' &&
+            enemy.x >= minWarpCol * TILE_SIZE
+          ) {
+            enemy.alive = false;
+          }
+        }
+      }
+
+      // 3.6 Update Flagpole End-of-Level Sequence (Banner Slide, Castle Door Walk-in, Time Tally & 1/3/6 Fireworks)
       this.flagpoleController.update(this.mario, this.currentLevel.id, {
         getTimeRemaining: () => this.timeRemaining,
         decrementTimeAndAddScore: (timeDelta, scoreDelta) => {
@@ -258,6 +335,19 @@ export class GameEngine {
 
       // 4.5 Update all Enemies, Projectiles, Rotating Fire-Bars & Castle Bridge Collapse
       this.enemyManager.update(this.mario, this.camera);
+
+      // 4.6 Handle Castle Bridge Collapse Victory Sequence (walk to Toad / Peach -> next World)
+      if (this.castleClearTimerFrames > 0) {
+        this.castleClearTimerFrames--;
+        if (this.castleClearTimerFrames === 0) {
+          this.eventBus.emit('stage-cleared', {
+            levelId: this.currentLevel.id,
+            fireworksLaunched: 0,
+          });
+          this.advanceToNextLevel(true);
+          return;
+        }
+      }
     }
 
     // 5. Update block bumps, brick shatter debris & floating score popups
@@ -275,12 +365,12 @@ export class GameEngine {
       }
     }
 
-    // 7. Auto-respawn after death fall or stage-cleared completion
+    // 7. Auto-respawn after death fall or advance to next stage after flagpole sequence completes
     if (!this.mario.alive && this.mario.y > 320) {
       this.lives = Math.max(1, this.lives - 1);
       this.loadLevel(this.currentLevel, false);
     } else if (this.flagpoleController.phase === 'completed') {
-      this.loadLevel(this.currentLevel, true);
+      this.advanceToNextLevel(true);
     }
   }
 

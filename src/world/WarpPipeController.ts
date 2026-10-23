@@ -220,7 +220,22 @@ export class WarpPipeController {
     this.itemManager.clearAll();
     mario.fireballs.length = 0;
 
+    if (portal.targetAreaId.startsWith('warp:')) {
+      const requestedLevelId = portal.targetAreaId.slice('warp:'.length);
+      this.reset();
+      this.eventBus.emit('warp-zone-entered', {
+        pipeId: portal.id,
+        requestedLevelId,
+        resolvedLevelId: requestedLevelId,
+      });
+      return;
+    }
+
     this.tilemapLoader.switchArea(portal.targetAreaId, portal.exitCol);
+    this.eventBus.emit('area-switched', {
+      areaId: portal.targetAreaId,
+      exitCol: portal.exitCol,
+    });
     mario.underwaterMode =
       this.tilemapLoader.activeArea.biome === 'underwater';
 

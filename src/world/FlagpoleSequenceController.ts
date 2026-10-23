@@ -44,6 +44,10 @@ export class FlagpoleSequenceController {
     this.eventBus = eventBus;
   }
 
+  public getFlagpoleCol(): number {
+    return this.flagpoleCol;
+  }
+
   public reset(flagpoleCol = 198, castleDoorCol = 204): void {
     this.phase = 'idle';
     this.flagBannerY = 48;

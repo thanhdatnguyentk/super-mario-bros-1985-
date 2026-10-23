@@ -4,7 +4,10 @@ import {
   TILE_SIZE,
   GRID_ROWS,
 } from '../types/physics-constants.ts';
-import type { LevelDefinition } from '../types/level-schema.ts';
+import type {
+  LevelDefinition,
+  WarpZoneConfig,
+} from '../types/level-schema.ts';
 import { NES_BIOME_PALETTES, type BiomePalette } from './NesPalette.ts';
 import { drawTile16x16 } from './PixelSpriteAtlas.ts';
 import type { Camera } from '../core/Camera.ts';
@@ -83,13 +86,44 @@ export class Renderer {
       }
     }
 
-    // 4. Render Flagpole Banner & End Castle if visible in Main Area
+    // 4. Render Flagpole Banner & End Castle if visible in Main Area or Exit Sub-World
+    if (
+      (activeArea.areaId === 'main' &&
+        level.goal.type === 'flagpole' &&
+        level.goal.flagpoleCol) ||
+      activeArea.areaId.endsWith('-exit')
+    ) {
+      this.renderGoalFlagAndCastle(
+        ctx,
+        camera,
+        flagpoleController.getFlagpoleCol(),
+        mario
+      );
+    }
+
+    // 4.5 Render Warp Zone Banner & Pipe Destination Numbers (Worlds 1-2, 4-2)
+    if (
+      activeArea.warpZone &&
+      (camera.x >= activeArea.warpZone.triggerCol * TILE_SIZE - 64 ||
+        mario.x >= activeArea.warpZone.triggerCol * TILE_SIZE)
+    ) {
+      this.renderWarpZoneBanner(ctx, camera, activeArea.warpZone);
+    }
+
+    // 4.6 Render Castle Retainer (Toad / Peach) & Victory Text in X-4 Castles
     if (
       activeArea.areaId === 'main' &&
-      level.goal.type === 'flagpole' &&
-      level.goal.flagpoleCol
+      level.goal.type === 'castle-axe' &&
+      level.goal.axeCol
     ) {
-      this.renderGoalFlagAndCastle(ctx, camera, level.goal.flagpoleCol, mario);
+      this.renderCastleRetainerAndText(
+        ctx,
+        camera,
+        level,
+        level.goal.axeCol,
+        enemyManager.bridgeCollapse !== null &&
+          !enemyManager.bridgeCollapse.active
+      );
     }
 
     // 5. Render Active Power-Up Items, Spinning Block Coins, Moving Platforms, Enemies, Projectiles & Fire-Bars
@@ -251,6 +285,77 @@ export class Renderer {
       ctx.fillRect(castleScreenX + 32, baseY + 52, 16, 28);
       ctx.fillRect(castleScreenX + 24, baseY + 10, 8, 12);
       ctx.fillRect(castleScreenX + 48, baseY + 10, 8, 12);
+    }
+  }
+
+  private renderWarpZoneBanner(
+    ctx: CanvasRenderingContext2D,
+    camera: Camera,
+    warpZone: WarpZoneConfig
+  ): void {
+    const firstPipeCol = warpZone.pipes[0]?.col ?? warpZone.triggerCol;
+    const bannerX = camera.worldToScreenX((firstPipeCol - 2) * TILE_SIZE);
+    if (bannerX >= -180 && bannerX <= NES_WIDTH) {
+      ctx.font = 'bold 8px monospace';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillText(warpZone.bannerText, bannerX, 84);
+
+      for (const wp of warpZone.pipes) {
+        const pipeNumX = camera.worldToScreenX(wp.col * TILE_SIZE + 12);
+        ctx.fillText(String(wp.targetWorld), pipeNumX, 114);
+      }
+    }
+  }
+
+  private renderCastleRetainerAndText(
+    ctx: CanvasRenderingContext2D,
+    camera: Camera,
+    level: LevelDefinition,
+    axeCol: number,
+    bridgeCollapsed: boolean
+  ): void {
+    const npcScreenX = camera.worldToScreenX((axeCol + 6) * TILE_SIZE);
+    if (npcScreenX >= -32 && npcScreenX <= NES_WIDTH + 32) {
+      const npcY = 11 * TILE_SIZE;
+      const isPeach = level.goal.rescueNpc === 'princess-peach';
+
+      if (isPeach) {
+        // Princess Peach 16x24 sprite
+        ctx.fillStyle = '#FC9838';
+        ctx.fillRect(npcScreenX + 4, npcY, 8, 6);
+        ctx.fillStyle = '#FCA044';
+        ctx.fillRect(npcScreenX + 4, npcY + 6, 8, 6);
+        ctx.fillStyle = '#FCFCFC';
+        ctx.fillRect(npcScreenX + 2, npcY + 12, 12, 20);
+        ctx.fillStyle = '#D82800';
+        ctx.fillRect(npcScreenX + 3, npcY + 18, 10, 4);
+      } else {
+        // Toad Retainer 16x24 sprite
+        ctx.fillStyle = '#FCFCFC';
+        ctx.fillRect(npcScreenX + 2, npcY + 8, 12, 8);
+        ctx.fillStyle = '#D82800';
+        ctx.fillRect(npcScreenX + 3, npcY + 9, 4, 4);
+        ctx.fillRect(npcScreenX + 9, npcY + 9, 4, 4);
+        ctx.fillStyle = '#FCA044';
+        ctx.fillRect(npcScreenX + 4, npcY + 16, 8, 6);
+        ctx.fillStyle = '#2038EC';
+        ctx.fillRect(npcScreenX + 3, npcY + 22, 10, 10);
+      }
+
+      if (bridgeCollapsed) {
+        ctx.font = 'bold 8px monospace';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = '#FCFCFC';
+        ctx.fillText('THANK YOU MARIO!', 64, 72);
+        if (isPeach) {
+          ctx.fillText('YOUR QUEST IS OVER.', 52, 92);
+          ctx.fillText('WE PRESENT YOU A NEW QUEST.', 24, 108);
+        } else {
+          ctx.fillText('BUT OUR PRINCESS IS IN', 44, 92);
+          ctx.fillText('ANOTHER CASTLE!', 68, 108);
+        }
+      }
     }
   }
 

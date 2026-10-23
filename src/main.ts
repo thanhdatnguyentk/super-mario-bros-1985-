@@ -65,6 +65,24 @@ function bootstrap(): void {
   });
   bindActionBtn('btn-reset', () => engine.loadLevel(engine.currentLevel, false));
 
+  // Populate & bind Stage Selector dropdown from LevelManager
+  const stageSelect = document.getElementById(
+    'stage-select'
+  ) as HTMLSelectElement | null;
+  if (stageSelect) {
+    for (const id of engine.levelManager.getRegisteredLevelIds()) {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = `World ${id}`;
+      stageSelect.appendChild(opt);
+    }
+    stageSelect.value = engine.currentLevel.id;
+    stageSelect.addEventListener('change', () => {
+      engine.loadLevelById(stageSelect.value, false);
+      canvas.focus();
+    });
+  }
+
   // Virtual D-Pad / A / B touch buttons
   const virtualMap: Array<[string, NesButton]> = [
     ['vbtn-left', 'left'],

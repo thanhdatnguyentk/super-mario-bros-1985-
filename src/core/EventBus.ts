@@ -125,6 +125,15 @@ export interface GameEventMap {
   'vine-climbed-top': {
     targetSubworldId: string;
   };
+  'warp-zone-entered': {
+    pipeId: string;
+    requestedLevelId: string;
+    resolvedLevelId: string;
+  };
+  'area-switched': {
+    areaId: string;
+    exitCol: number;
+  };
 }
 
 type EventListener<K extends keyof GameEventMap> = (
