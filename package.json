@@ -9,8 +9,7 @@
     "build": "node scripts/build.mjs",
     "test": "node --test --experimental-strip-types src/__tests__/*.test.ts"
   },
-  "devDependencies": {
-    "typescript": "^5.7.2",
-    "vite": "^6.0.0"
+  "engines": {
+    "node": ">=22.0.0"
   }
 }
