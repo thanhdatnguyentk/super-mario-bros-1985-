@@ -7,6 +7,7 @@ import { TileCollisionSolver } from '../physics/TileCollisionSolver.ts';
 import { TilemapLoader } from '../world/TilemapLoader.ts';
 import { WarpPipeController } from '../world/WarpPipeController.ts';
 import { ItemManager } from '../entities/items/ItemManager.ts';
+import { EnemyManager } from '../entities/enemies/EnemyManager.ts';
 import { Mario } from '../entities/player/Mario.ts';
 import { Renderer, type HudTelemetryState } from '../rendering/Renderer.ts';
 import { WORLD_1_1_LEVEL } from '../levels/TestStage1_1.ts';
@@ -37,6 +38,7 @@ export class GameEngine {
   public readonly camera: Camera;
   public readonly tilemapLoader: TilemapLoader;
   public readonly itemManager: ItemManager;
+  public readonly enemyManager: EnemyManager;
   public readonly warpPipeController: WarpPipeController;
   public readonly renderer = new Renderer();
   public mario: Mario;
@@ -67,6 +69,7 @@ export class GameEngine {
       this.camera
     );
     this.itemManager = new ItemManager(this.eventBus, this.collisionSolver);
+    this.enemyManager = new EnemyManager(this.eventBus, this.collisionSolver);
     this.warpPipeController = new WarpPipeController(
       this.tilemapLoader,
       this.itemManager,
@@ -114,6 +117,13 @@ export class GameEngine {
     this.eventBus.on('flagpole-reached', ({ points }) => {
       this.score += points;
     });
+
+    this.eventBus.on('enemy-defeated', ({ points, extraLife }) => {
+      this.score += points;
+      if (extraLife) {
+        this.lives++;
+      }
+    });
   }
 
   public loadLevel(level: LevelDefinition, keepPowerState = false): void {
@@ -125,6 +135,7 @@ export class GameEngine {
     this.itemManager.clearAll();
     this.warpPipeController.reset();
     this.tilemapLoader.loadLevel(level);
+    this.enemyManager.loadAreaEnemies(level.enemies, level.fireBars);
 
     this.mario = new Mario(
       level.playerStart.col * TILE_SIZE,
@@ -188,6 +199,9 @@ export class GameEngine {
 
       // 4. Update all spawned Power-Up Items, Vines & Spinning Block Coins
       this.itemManager.update(this.mario);
+
+      // 4.5 Update all Enemies, Projectiles, Rotating Fire-Bars & Castle Bridge Collapse
+      this.enemyManager.update(this.mario, this.camera);
     }
 
     // 5. Update block bumps, brick shatter debris & floating score popups
@@ -234,6 +248,7 @@ export class GameEngine {
       this.camera,
       this.collisionSolver,
       this.itemManager,
+      this.enemyManager,
       this.mario,
       this.warpPipeController.isActive(),
       hud

@@ -40,6 +40,7 @@ describe('Phase 2 — Tilemap Loader, Interactive Blocks, All Power-Up Items & W
   it('spawns Super Mushroom for Small Mario and Fire Flower for Super Mario from progressive ? blocks', () => {
     // 1. Small Mario hits progressive ? block at (col 21, row 9) -> Super Mushroom
     const engineSmall = new GameEngine(WORLD_1_1_LEVEL);
+    engineSmall.enemyManager.enemies.length = 0;
     engineSmall.mario.x = 21 * TILE_SIZE;
     engineSmall.mario.y = 10 * TILE_SIZE;
     engineSmall.mario.vySub = -pxToSub(4);
@@ -52,6 +53,7 @@ describe('Phase 2 — Tilemap Loader, Interactive Blocks, All Power-Up Items & W
     assert.equal(mushroom.lifecycleState, 'emerging');
 
     // Step 40 frames so Mushroom finishes emerging (4 delay + 32 rise frames) and starts gliding right
+    engineSmall.mario.x = 18 * TILE_SIZE;
     for (let i = 0; i < 40; i++) {
       engineSmall.stepPhysicsTick();
     }
@@ -59,11 +61,12 @@ describe('Phase 2 — Tilemap Loader, Interactive Blocks, All Power-Up Items & W
     assert.ok(mushroom.vx > 0, 'Active Super Mushroom should glide rightward');
 
     // Place Mario onto the active Super Mushroom to collect it -> upgrades to Super Mario + 1000 score
+    const scoreBeforePickup = engineSmall.score;
     engineSmall.mario.x = mushroom.x;
     engineSmall.mario.y = mushroom.y;
     engineSmall.stepPhysicsTick();
     assert.equal(engineSmall.mario.powerState, 'super');
-    assert.equal(engineSmall.score, 1000);
+    assert.equal(engineSmall.score, scoreBeforePickup + 1000);
 
     // 2. Super Mario hits progressive ? block at (col 78, row 9) -> Fire Flower
     const engineSuper = new GameEngine(WORLD_1_1_LEVEL);

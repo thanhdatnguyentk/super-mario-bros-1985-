@@ -70,6 +70,10 @@ export const NES_PHYSICS = {
   STARMAN_DURATION_FRAMES: 720, // 12 seconds
   DAMAGE_IFRAMES: 180, // 3 seconds post-hit invulnerability
   TRANSFORM_DURATION_FRAMES: 48, // 0.8s power-up/power-down freeze
+
+  // Authentic 1985 Consecutive Combo Chain Point Tables (after final entry -> 1UP)
+  STOMP_CHAIN_POINTS: [100, 200, 400, 500, 800, 1000, 2000, 4000, 5000, 8000],
+  SHELL_CHAIN_POINTS: [500, 800, 1000, 2000, 4000, 5000, 8000],
 } as const;
 
 export interface JumpPhysicsBracket {

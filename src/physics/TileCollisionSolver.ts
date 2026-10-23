@@ -232,6 +232,7 @@ export class TileCollisionSolver {
     hitCeiling: boolean;
     landedOnFloor: boolean;
     touchedFlagpoleCol: number | null;
+    touchedAxeCol: number | null;
     touchedLava: boolean;
   } {
     const isPlayer = options?.isPlayer ?? false;
@@ -242,6 +243,7 @@ export class TileCollisionSolver {
     let hitCeiling = false;
     let landedOnFloor = false;
     let touchedFlagpoleCol: number | null = null;
+    let touchedAxeCol: number | null = null;
     let touchedLava = false;
 
     // 1. Horizontal Step
@@ -393,6 +395,13 @@ export class TileCollisionSolver {
             });
           } else if (ch === 'F' || ch === 'G') {
             touchedFlagpoleCol = c;
+          } else if (ch === 'A') {
+            this.setTile(c, r, '.');
+            touchedAxeCol = c;
+            this.eventBus.emit('castle-axe-touched', {
+              axeCol: c,
+              axeRow: r,
+            });
           } else if (ch === 'L' || ch === 'l') {
             touchedLava = true;
           }
@@ -406,6 +415,7 @@ export class TileCollisionSolver {
       hitCeiling,
       landedOnFloor,
       touchedFlagpoleCol,
+      touchedAxeCol,
       touchedLava,
     };
   }

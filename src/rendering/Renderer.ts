@@ -11,6 +11,7 @@ import type { Camera } from '../core/Camera.ts';
 import type { TileCollisionSolver } from '../physics/TileCollisionSolver.ts';
 import type { Mario } from '../entities/player/Mario.ts';
 import type { ItemManager } from '../entities/items/ItemManager.ts';
+import type { EnemyManager } from '../entities/enemies/EnemyManager.ts';
 import type { ActiveAreaDescriptor } from '../world/TilemapLoader.ts';
 
 export interface HudTelemetryState {
@@ -31,6 +32,7 @@ export class Renderer {
     camera: Camera,
     collisionSolver: TileCollisionSolver,
     itemManager: ItemManager,
+    enemyManager: EnemyManager,
     mario: Mario,
     pipeCutsceneActive: boolean,
     hud: HudTelemetryState
@@ -50,8 +52,9 @@ export class Renderer {
       this.renderOverworldScenery(ctx, camera, palette, level);
     }
 
-    // 2.5 Render Emerging Power-Ups / Vines & Pipe-Cutscene Mario BEHIND Foreground Tiles (NES PPU Priority)
+    // 2.5 Render Emerging Power-Ups, Vines, Piranha Plants & Pipe-Cutscene Mario BEHIND Foreground Tiles
     itemManager.renderBehindTiles(ctx, camera);
+    enemyManager.renderBehindTiles(ctx, camera);
     if (pipeCutsceneActive) {
       mario.render(ctx, camera);
     }
@@ -85,8 +88,9 @@ export class Renderer {
       this.renderGoalFlagAndCastle(ctx, camera, level.goal.flagpoleCol, mario);
     }
 
-    // 5. Render Active Power-Up Items & Spinning Block Coins
+    // 5. Render Active Power-Up Items, Spinning Block Coins, Enemies, Projectiles & Fire-Bars
     itemManager.renderInFrontOfTiles(ctx, camera);
+    enemyManager.renderInFrontOfTiles(ctx, camera);
 
     // 6. Render Shattered Brick Debris Particles
     for (const p of collisionSolver.debrisParticles) {

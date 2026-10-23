@@ -467,6 +467,59 @@ export function drawTile16x16(
       break;
     }
 
+    case '=': {
+      // Castle / Athletic Bridge Deck
+      ctx.fillStyle = '#D82800';
+      ctx.fillRect(screenX, screenY, 16, 4);
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(screenX + 2, screenY + 4, 4, 10);
+      ctx.fillRect(screenX + 10, screenY + 4, 4, 10);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(screenX, screenY + 3, 16, 1);
+      break;
+    }
+
+    case 'R': {
+      // Bridge Chain / Rope
+      ctx.fillStyle = '#FC9838';
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(screenX + 10 - i * 3, screenY + i * 4, 4, 3);
+      }
+      break;
+    }
+
+    case 'A': {
+      // Castle Axe (Bowser Bridge Collapse Trigger)
+      const flash = Math.floor(animFrame / 6) % 2 === 0;
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(screenX + 7, screenY + 4, 2, 12);
+      ctx.fillStyle = flash ? '#FCFCFC' : '#D82800';
+      ctx.fillRect(screenX + 2, screenY + 2, 12, 7);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(screenX + 6, screenY + 4, 4, 3);
+      break;
+    }
+
+    case 'b': {
+      // Bullet Bill Cannon Top (Skull Turret)
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(screenX + 1, screenY, 14, 16);
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(screenX + 3, screenY + 2, 10, 12);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(screenX + 5, screenY + 4, 6, 6);
+      break;
+    }
+
+    case 'c': {
+      // Bullet Bill Cannon Base
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(screenX + 2, screenY, 12, 16);
+      ctx.fillStyle = '#7C7C7C';
+      ctx.fillRect(screenX + 4, screenY + 2, 8, 12);
+      break;
+    }
+
     default:
       break;
   }
@@ -652,4 +705,353 @@ export function drawFireballExplosionSprite(
     ctx.fillStyle = '#FCFCFC';
     ctx.fillRect(x - 2, y - 2, 4, 4);
   }
+}
+
+export interface EnemyRenderOptions {
+  type: string;
+  facing: 1 | -1;
+  animFrame: number;
+  squished?: boolean;
+  flippedUpsideDown?: boolean;
+  inShell?: boolean;
+  shellReviving?: boolean;
+  winged?: boolean;
+  spinyEgg?: boolean;
+  mouthOpen?: boolean;
+}
+
+/**
+ * Render 8-bit Pixel-Art Sprites for the entire 1985 Enemy Roster + King Bowser.
+ */
+export function drawEnemySprite(
+  ctx: CanvasRenderingContext2D,
+  screenX: number,
+  screenY: number,
+  width: number,
+  height: number,
+  opts: EnemyRenderOptions
+): void {
+  const x = Math.round(screenX);
+  const y = Math.round(screenY);
+
+  ctx.save();
+  if (opts.flippedUpsideDown) {
+    ctx.translate(x + width * 0.5, y + height * 0.5);
+    ctx.scale(1, -1);
+    ctx.translate(-(x + width * 0.5), -(y + height * 0.5));
+  } else if (opts.facing === 1 && opts.type !== 'piranha-plant' && opts.type !== 'podoboo') {
+    ctx.translate(x + width, y);
+    ctx.scale(-1, 1);
+    ctx.translate(-x, -y);
+  }
+
+  const step = Math.floor(opts.animFrame / 8) % 2;
+
+  switch (opts.type) {
+    case 'goomba': {
+      if (opts.squished) {
+        ctx.fillStyle = '#C84C0C';
+        ctx.fillRect(x + 1, y + 8, 14, 5);
+        ctx.fillStyle = '#FCBCB0';
+        ctx.fillRect(x + 4, y + 13, 8, 3);
+        break;
+      }
+      // Goomba Mushroom Head
+      ctx.fillStyle = '#C84C0C';
+      ctx.fillRect(x + 4, y + 1, 8, 3);
+      ctx.fillRect(x + 2, y + 4, 12, 4);
+      ctx.fillRect(x + 1, y + 8, 14, 3);
+      // Angry Eyes
+      ctx.fillStyle = '#FCBCB0';
+      ctx.fillRect(x + 4, y + 5, 2, 4);
+      ctx.fillRect(x + 10, y + 5, 2, 4);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x + 5, y + 6, 1, 3);
+      ctx.fillRect(x + 10, y + 6, 1, 3);
+      // Stem & Alternating Walking Feet
+      ctx.fillStyle = '#FCBCB0';
+      ctx.fillRect(x + 5, y + 11, 6, 3);
+      ctx.fillStyle = '#000000';
+      if (step === 0) {
+        ctx.fillRect(x + 2, y + 13, 4, 3);
+        ctx.fillRect(x + 10, y + 14, 4, 2);
+      } else {
+        ctx.fillRect(x + 2, y + 14, 4, 2);
+        ctx.fillRect(x + 10, y + 13, 4, 3);
+      }
+      break;
+    }
+
+    case 'koopa-green':
+    case 'koopa-red':
+    case 'paratroopa-green-leaping':
+    case 'paratroopa-green-fly-horizontal':
+    case 'paratroopa-red-vertical': {
+      const isRed = opts.type.includes('red');
+      const shellColor = isRed ? '#D82800' : '#00A800';
+      const shellTrim = isRed ? '#FC9838' : '#80D010';
+
+      if (opts.inShell) {
+        // 16×16 Retracted Koopa Shell
+        ctx.fillStyle = shellColor;
+        ctx.fillRect(x + 2, y + 2, 12, 12);
+        ctx.fillStyle = shellTrim;
+        ctx.fillRect(x + 4, y + 4, 8, 8);
+        ctx.fillStyle = '#FCFCFC';
+        ctx.fillRect(x + 2, y + 12, 12, 2);
+        if (opts.shellReviving && step === 1) {
+          ctx.fillStyle = '#FC9838';
+          ctx.fillRect(x + 1, y + 13, 3, 3);
+          ctx.fillRect(x + 12, y + 13, 3, 3);
+        }
+        break;
+      }
+
+      // Standing / Walking 16×24 Koopa Troopa
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 1, y + 2, 6, 7); // Head
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x + 2, y + 4, 2, 2); // Eye
+
+      // Shell on Back
+      ctx.fillStyle = shellColor;
+      ctx.fillRect(x + 5, y + 7, 10, 12);
+      ctx.fillStyle = shellTrim;
+      ctx.fillRect(x + 7, y + 9, 6, 8);
+
+      // Wings if Paratroopa
+      if (opts.winged) {
+        ctx.fillStyle = '#FCFCFC';
+        const wingY = step === 0 ? y + 3 : y + 6;
+        ctx.fillRect(x + 9, wingY, 6, 5);
+      }
+
+      // Feet
+      ctx.fillStyle = '#FC9838';
+      const footOffset = step === 0 ? 0 : 2;
+      ctx.fillRect(x + 3 + footOffset, y + 19, 4, 5);
+      ctx.fillRect(x + 10 - footOffset, y + 19, 4, 5);
+      break;
+    }
+
+    case 'buzzy-beetle': {
+      // Dark Fireproof Shell Beetle
+      ctx.fillStyle = '#004058';
+      ctx.fillRect(x + 2, y + 2, 12, 11);
+      ctx.fillStyle = '#008888';
+      ctx.fillRect(x + 4, y + 4, 8, 6);
+      if (!opts.inShell) {
+        ctx.fillStyle = '#FC9838';
+        ctx.fillRect(x + 2, y + 10, 4, 4);
+        ctx.fillRect(x + 3 + step * 2, y + 13, 3, 3);
+        ctx.fillRect(x + 10 - step * 2, y + 13, 3, 3);
+      }
+      break;
+    }
+
+    case 'piranha-plant': {
+      // Carnivorous Pipe Plant (16×24)
+      ctx.fillStyle = '#D82800';
+      ctx.fillRect(x + 2, y + 1, 12, 12);
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(x + 4, y + 3, 3, 3);
+      ctx.fillRect(x + 10, y + 6, 3, 3);
+      // Chomping Mouth
+      if (step === 0) {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x + 5, y, 6, 5);
+        ctx.fillStyle = '#FCFCFC';
+        ctx.fillRect(x + 5, y + 2, 2, 2);
+        ctx.fillRect(x + 9, y + 2, 2, 2);
+      }
+      // Green Stem & Leaves
+      ctx.fillStyle = '#00A800';
+      ctx.fillRect(x + 6, y + 13, 4, 11);
+      ctx.fillStyle = '#80D010';
+      ctx.fillRect(x + 2, y + 16, 4, 3);
+      ctx.fillRect(x + 10, y + 16, 4, 3);
+      break;
+    }
+
+    case 'hammer-bro': {
+      // Helmet & Armor (16×24)
+      ctx.fillStyle = '#00A800';
+      ctx.fillRect(x + 3, y + 1, 10, 6);
+      ctx.fillRect(x + 4, y + 8, 9, 11);
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 2, y + 4, 6, 5);
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(x + 5, y + 10, 6, 7);
+      // Raised Arm with Hammer
+      if (opts.mouthOpen) {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x + 10, y - 4, 5, 4);
+        ctx.fillStyle = '#FC9838';
+        ctx.fillRect(x + 12, y, 2, 5);
+      }
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 4, y + 19, 3, 5);
+      ctx.fillRect(x + 10, y + 19, 3, 5);
+      break;
+    }
+
+    case 'lakitu': {
+      // Lakitu Goggles Head + Smiling Cloud (16×24)
+      ctx.fillStyle = '#00A800';
+      ctx.fillRect(x + 4, y + 1, 8, 7);
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 5, y + 3, 6, 4);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x + 5, y + 4, 6, 2);
+      // Cloud Body
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(x + 1, y + 9, 14, 12);
+      ctx.fillRect(x + 3, y + 8, 10, 14);
+      ctx.fillStyle = '#D82800';
+      ctx.fillRect(x + 6, y + 16, 4, 2);
+      break;
+    }
+
+    case 'spiny': {
+      if (opts.spinyEgg) {
+        // Spinning Spiny Egg
+        ctx.fillStyle = '#D82800';
+        ctx.fillRect(x + 3, y + 2, 10, 12);
+        ctx.fillStyle = '#FCFCFC';
+        ctx.fillRect(x + 5, y + 4, 2, 2);
+        ctx.fillRect(x + 9, y + 8, 2, 2);
+        break;
+      }
+      // Spiky Red Shell
+      ctx.fillStyle = '#D82800';
+      ctx.fillRect(x + 2, y + 5, 12, 8);
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(x + 3, y + 2, 2, 3);
+      ctx.fillRect(x + 7, y + 2, 2, 3);
+      ctx.fillRect(x + 11, y + 2, 2, 3);
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 2, y + 12, 12, 4);
+      break;
+    }
+
+    case 'bullet-bill': {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x + 1, y + 2, 14, 12);
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(x + 3, y + 4, 3, 3); // Angry eye
+      ctx.fillRect(x + 8, y + 6, 4, 4); // Side arm
+      break;
+    }
+
+    case 'blooper': {
+      // White Squid (16×24)
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(x + 3, y + 2, 10, 12);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x + 4, y + 8, 3, 3);
+      ctx.fillRect(x + 9, y + 8, 3, 3);
+      // Tentacles
+      ctx.fillStyle = '#FCFCFC';
+      const tentacleLen = step === 0 ? 8 : 5;
+      ctx.fillRect(x + 3, y + 14, 2, tentacleLen);
+      ctx.fillRect(x + 7, y + 14, 2, tentacleLen);
+      ctx.fillRect(x + 11, y + 14, 2, tentacleLen);
+      break;
+    }
+
+    case 'cheep-red-swim':
+    case 'cheep-grey-swim':
+    case 'cheep-flying-generator': {
+      const isGrey = opts.type === 'cheep-grey-swim';
+      ctx.fillStyle = isGrey ? '#7C7C7C' : '#D82800';
+      ctx.fillRect(x + 2, y + 3, 12, 10);
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(x + 3, y + 5, 3, 3);
+      ctx.fillRect(x + 6, y + (step === 0 ? 1 : 3), 5, 3); // Wing fin
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 13, y + 5, 3, 6); // Tail
+      break;
+    }
+
+    case 'podoboo': {
+      // Erupting Lava Fireball
+      ctx.fillStyle = '#D82800';
+      ctx.fillRect(x + 2, y + 2, 12, 12);
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 4, y + 4, 8, 8);
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(x + 6, y + 6, 4, 4);
+      break;
+    }
+
+    case 'bowser': {
+      // King Bowser (32×32 Boss Sprite)
+      ctx.fillStyle = '#00A800';
+      ctx.fillRect(x + 4, y + 4, 24, 24); // Main Armored Body & Spiked Shell
+      ctx.fillStyle = '#80D010';
+      ctx.fillRect(x + 14, y + 6, 12, 18); // Shell backing
+      // White Shell Spikes
+      ctx.fillStyle = '#FCFCFC';
+      ctx.fillRect(x + 24, y + 6, 5, 4);
+      ctx.fillRect(x + 26, y + 12, 5, 4);
+      ctx.fillRect(x + 24, y + 18, 5, 4);
+      // Horns & Fiery Mane
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 6, y, 4, 5);
+      ctx.fillRect(x + 2, y + 8, 12, 16);
+      // Roaring Snout & Eye
+      ctx.fillStyle = '#D82800';
+      ctx.fillRect(x + 4, y + 6, 3, 3);
+      if (opts.mouthOpen) {
+        ctx.fillStyle = '#FCFCFC';
+        ctx.fillRect(x + 1, y + 11, 7, 5);
+      }
+      // Feet
+      ctx.fillStyle = '#00A800';
+      ctx.fillRect(x + 6, y + 28, 7, 4);
+      ctx.fillRect(x + 18, y + 28, 7, 4);
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Render Enemy Projectiles (Spinning Hammer & Bowser Fire Breath).
+ */
+export function drawEnemyProjectileSprite(
+  ctx: CanvasRenderingContext2D,
+  kind: 'hammer' | 'bowser-fire',
+  screenX: number,
+  screenY: number,
+  animFrame: number
+): void {
+  const x = Math.round(screenX);
+  const y = Math.round(screenY);
+
+  if (kind === 'hammer') {
+    const rot = Math.floor(animFrame / 3) % 4;
+    ctx.fillStyle = '#000000';
+    if (rot % 2 === 0) {
+      ctx.fillRect(x + 1, y + 1, 6, 4);
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 3, y + 5, 2, 6);
+    } else {
+      ctx.fillRect(x + 5, y + 1, 4, 6);
+      ctx.fillStyle = '#FC9838';
+      ctx.fillRect(x + 1, y + 3, 4, 2);
+    }
+    return;
+  }
+
+  // Bowser Fire Breath (24×8 streaming flame)
+  const flash = Math.floor(animFrame / 2) % 2 === 0;
+  ctx.fillStyle = flash ? '#D82800' : '#FC9838';
+  ctx.fillRect(x, y + 1, 24, 6);
+  ctx.fillStyle = flash ? '#FC9838' : '#FCFCFC';
+  ctx.fillRect(x + 4, y + 2, 16, 4);
 }

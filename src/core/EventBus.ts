@@ -82,6 +82,27 @@ export interface GameEventMap {
     touchY: number;
     points: number;
   };
+  'enemy-defeated': {
+    enemyType: string;
+    method:
+      | 'stomp'
+      | 'shell'
+      | 'fireball'
+      | 'starman'
+      | 'block-bump'
+      | 'bridge-collapse';
+    points: number;
+    extraLife: boolean;
+    worldX: number;
+    worldY: number;
+  };
+  'castle-axe-touched': {
+    axeCol: number;
+    axeRow: number;
+  };
+  'bridge-collapse-completed': {
+    axeCol: number;
+  };
 }
 
 type EventListener<K extends keyof GameEventMap> = (
