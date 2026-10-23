@@ -4,6 +4,9 @@ import { EventBus } from './EventBus.ts';
 import { InputManager } from './InputManager.ts';
 import { Camera } from './Camera.ts';
 import { TileCollisionSolver } from '../physics/TileCollisionSolver.ts';
+import { TilemapLoader } from '../world/TilemapLoader.ts';
+import { WarpPipeController } from '../world/WarpPipeController.ts';
+import { ItemManager } from '../entities/items/ItemManager.ts';
 import { Mario } from '../entities/player/Mario.ts';
 import { Renderer, type HudTelemetryState } from '../rendering/Renderer.ts';
 import { WORLD_1_1_LEVEL } from '../levels/TestStage1_1.ts';
@@ -22,6 +25,8 @@ export interface LivePhysicsTelemetry {
   skidding: boolean;
   cameraX: number;
   activeFireballs: number;
+  activeItems: number;
+  activeAreaId: string;
   fps: number;
 }
 
@@ -30,6 +35,9 @@ export class GameEngine {
   public readonly input = new InputManager();
   public readonly collisionSolver: TileCollisionSolver;
   public readonly camera: Camera;
+  public readonly tilemapLoader: TilemapLoader;
+  public readonly itemManager: ItemManager;
+  public readonly warpPipeController: WarpPipeController;
   public readonly renderer = new Renderer();
   public mario: Mario;
   public currentLevel: LevelDefinition;
@@ -53,6 +61,17 @@ export class GameEngine {
     this.currentLevel = initialLevel;
     this.collisionSolver = new TileCollisionSolver(this.eventBus);
     this.camera = new Camera(initialLevel.widthCols);
+    this.tilemapLoader = new TilemapLoader(
+      initialLevel,
+      this.collisionSolver,
+      this.camera
+    );
+    this.itemManager = new ItemManager(this.eventBus, this.collisionSolver);
+    this.warpPipeController = new WarpPipeController(
+      this.tilemapLoader,
+      this.itemManager,
+      this.eventBus
+    );
     this.mario = new Mario(
       initialLevel.playerStart.col * TILE_SIZE,
       initialLevel.playerStart.row * TILE_SIZE,
@@ -85,18 +104,9 @@ export class GameEngine {
       this.score += 50;
     });
 
-    this.eventBus.on('block-bumped', ({ payload }) => {
-      if (payload === 'powerup-progressive') {
-        this.score += 1000;
-        if (this.mario.powerState === 'small') {
-          this.mario.setPowerState('super', true);
-        } else {
-          this.mario.setPowerState('fire', true);
-        }
-      } else if (payload === 'starman') {
-        this.score += 1000;
-        this.mario.activateStarman();
-      } else if (payload === 'one-up') {
+    this.eventBus.on('item-collected', ({ kind, points }) => {
+      this.score += points;
+      if (kind === 'one-up') {
         this.lives++;
       }
     });
@@ -112,9 +122,9 @@ export class GameEngine {
     this.timeRemaining = level.timeLimit;
     this.timerTickCounter = 0;
 
-    this.collisionSolver.loadLevelGrid(level);
-    this.camera.setLevelWidthCols(level.widthCols);
-    this.camera.forceSetX(0);
+    this.itemManager.clearAll();
+    this.warpPipeController.reset();
+    this.tilemapLoader.loadLevel(level);
 
     this.mario = new Mario(
       level.playerStart.col * TILE_SIZE,
@@ -157,19 +167,34 @@ export class GameEngine {
 
     if (this.isPaused) return;
 
-    // Update Mario with one-way camera left-edge boundary clamp
-    this.mario.update(this.camera.x, this.camera);
+    // 1. Check / Advance Warp Pipe Cutscene (suspends standard Mario physics while entering/exiting pipe)
+    const inPipeCutscene = this.warpPipeController.update(
+      this.mario,
+      this.input
+    );
 
-    // Advance one-way camera rightward when Mario passes scroll threshold
-    if (this.mario.alive && !this.mario.flagpoleSliding) {
-      this.camera.followTargetRightOnly(this.mario.x);
+    if (!inPipeCutscene) {
+      // 2. Update Mario with one-way camera left-edge boundary clamp
+      this.mario.update(this.camera.x, this.camera);
+
+      // 3. Advance one-way camera rightward when Mario passes scroll threshold (unless room is scrollLocked)
+      if (
+        this.mario.alive &&
+        !this.mario.flagpoleSliding &&
+        !this.tilemapLoader.activeArea.scrollLocked
+      ) {
+        this.camera.followTargetRightOnly(this.mario.x);
+      }
+
+      // 4. Update all spawned Power-Up Items, Vines & Spinning Block Coins
+      this.itemManager.update(this.mario);
     }
 
-    // Update block bumps, brick shatter debris & floating score popups
+    // 5. Update block bumps, brick shatter debris & floating score popups
     this.collisionSolver.updateVisualEffects();
 
-    // Update NES timer (1 NES timer unit = 24 frames @ 60 FPS = 0.4s)
-    if (this.mario.alive && !this.mario.flagpoleSliding) {
+    // 6. Update NES timer (1 NES timer unit = 24 frames @ 60 FPS = 0.4s)
+    if (this.mario.alive && !this.mario.flagpoleSliding && !inPipeCutscene) {
       this.timerTickCounter++;
       if (this.timerTickCounter >= 24) {
         this.timerTickCounter = 0;
@@ -180,7 +205,7 @@ export class GameEngine {
       }
     }
 
-    // Auto-respawn after death fall or castle walk-in
+    // 7. Auto-respawn after death fall or castle walk-in
     if (!this.mario.alive && this.mario.y > 320) {
       this.lives = Math.max(1, this.lives - 1);
       this.loadLevel(this.currentLevel, false);
@@ -205,9 +230,12 @@ export class GameEngine {
     this.renderer.renderFrame(
       ctx,
       this.currentLevel,
+      this.tilemapLoader.activeArea,
       this.camera,
       this.collisionSolver,
+      this.itemManager,
       this.mario,
+      this.warpPipeController.isActive(),
       hud
     );
   }
@@ -246,6 +274,8 @@ export class GameEngine {
           skidding: this.mario.isSkidding,
           cameraX: Math.round(this.camera.x),
           activeFireballs: this.mario.fireballs.length,
+          activeItems: this.itemManager.items.length,
+          activeAreaId: this.tilemapLoader.activeArea.areaId,
           fps: Math.min(60, this.measuredFps),
         });
       }

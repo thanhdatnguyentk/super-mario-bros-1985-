@@ -1,6 +1,13 @@
 import type { MarioPowerState } from '../types/physics-constants.ts';
 import type { BlockPayloadType } from '../types/level-schema.ts';
 
+export type SpawnedItemKind =
+  | 'super-mushroom'
+  | 'fire-flower'
+  | 'starman'
+  | 'one-up'
+  | 'vine';
+
 export interface GameEventMap {
   'block-bumped': {
     col: number;
@@ -8,6 +15,7 @@ export interface GameEventMap {
     tileChar: string;
     powerState: MarioPowerState;
     payload?: BlockPayloadType;
+    targetSubworldId?: string;
   };
   'brick-shattered': {
     col: number;
@@ -16,6 +24,20 @@ export interface GameEventMap {
     worldY: number;
   };
   'coin-collected': {
+    worldX: number;
+    worldY: number;
+    points: number;
+    fromBlock?: boolean;
+  };
+  'item-spawned': {
+    kind: SpawnedItemKind;
+    col: number;
+    row: number;
+    worldX: number;
+    worldY: number;
+  };
+  'item-collected': {
+    kind: SpawnedItemKind;
     worldX: number;
     worldY: number;
     points: number;
@@ -33,6 +55,21 @@ export interface GameEventMap {
     worldX: number;
     worldY: number;
     direction: 1 | -1;
+  };
+  'fireball-exploded': {
+    worldX: number;
+    worldY: number;
+  };
+  'pipe-transition-started': {
+    pipeId: string;
+    direction: 'down' | 'right' | 'up';
+    targetAreaId: string;
+  };
+  'pipe-transition-completed': {
+    pipeId: string;
+    areaId: string;
+    exitCol: number;
+    exitRow: number;
   };
   'player-damaged': {
     fromState: MarioPowerState;

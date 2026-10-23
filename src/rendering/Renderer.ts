@@ -10,6 +10,8 @@ import { drawTile16x16 } from './PixelSpriteAtlas.ts';
 import type { Camera } from '../core/Camera.ts';
 import type { TileCollisionSolver } from '../physics/TileCollisionSolver.ts';
 import type { Mario } from '../entities/player/Mario.ts';
+import type { ItemManager } from '../entities/items/ItemManager.ts';
+import type { ActiveAreaDescriptor } from '../world/TilemapLoader.ts';
 
 export interface HudTelemetryState {
   score: number;
@@ -25,27 +27,39 @@ export class Renderer {
   public renderFrame(
     ctx: CanvasRenderingContext2D,
     level: LevelDefinition,
+    activeArea: ActiveAreaDescriptor,
     camera: Camera,
     collisionSolver: TileCollisionSolver,
+    itemManager: ItemManager,
     mario: Mario,
+    pipeCutsceneActive: boolean,
     hud: HudTelemetryState
   ): void {
     this.animFrame++;
-    const palette = NES_BIOME_PALETTES[level.biome];
+    const palette = NES_BIOME_PALETTES[activeArea.biome];
 
     // 1. Clear 256×240 frame with Biome Sky color
     ctx.fillStyle = palette.skyBg;
     ctx.fillRect(0, 0, NES_WIDTH, NES_HEIGHT);
 
-    // 2. Render Repeating NES Scenery (Hills, Clouds, Bushes, Castle Goal)
-    if (level.bgPreset === 'hills-clouds-bushes') {
+    // 2. Render Repeating NES Scenery (Hills, Clouds, Bushes, Castle Goal) in Main Overworld
+    if (
+      activeArea.areaId === 'main' &&
+      activeArea.bgPreset === 'hills-clouds-bushes'
+    ) {
       this.renderOverworldScenery(ctx, camera, palette, level);
+    }
+
+    // 2.5 Render Emerging Power-Ups / Vines & Pipe-Cutscene Mario BEHIND Foreground Tiles (NES PPU Priority)
+    itemManager.renderBehindTiles(ctx, camera);
+    if (pipeCutsceneActive) {
+      mario.render(ctx, camera);
     }
 
     // 3. Render Visible Tilemap Columns (with 1-column margin)
     const startCol = Math.max(0, Math.floor(camera.x / TILE_SIZE) - 1);
     const endCol = Math.min(
-      level.widthCols - 1,
+      activeArea.widthCols - 1,
       Math.ceil((camera.x + NES_WIDTH) / TILE_SIZE) + 1
     );
 
@@ -62,12 +76,19 @@ export class Renderer {
       }
     }
 
-    // 4. Render Flagpole Banner & End Castle if visible
-    if (level.goal.type === 'flagpole' && level.goal.flagpoleCol) {
+    // 4. Render Flagpole Banner & End Castle if visible in Main Area
+    if (
+      activeArea.areaId === 'main' &&
+      level.goal.type === 'flagpole' &&
+      level.goal.flagpoleCol
+    ) {
       this.renderGoalFlagAndCastle(ctx, camera, level.goal.flagpoleCol, mario);
     }
 
-    // 5. Render Shattered Brick Debris Particles
+    // 5. Render Active Power-Up Items & Spinning Block Coins
+    itemManager.renderInFrontOfTiles(ctx, camera);
+
+    // 6. Render Shattered Brick Debris Particles
     for (const p of collisionSolver.debrisParticles) {
       const sx = camera.worldToScreenX(p.x);
       const sy = camera.worldToScreenY(p.y);
@@ -77,10 +98,12 @@ export class Renderer {
       ctx.fillRect(sx, sy, 3, 2);
     }
 
-    // 6. Render Mario & Active Fireballs
-    mario.render(ctx, camera);
+    // 7. Render Mario & Active Fireballs (when not behind pipe lip)
+    if (!pipeCutsceneActive) {
+      mario.render(ctx, camera);
+    }
 
-    // 7. Render Floating Score Popups (e.g. "200", "1000", "1UP")
+    // 8. Render Floating Score Popups (e.g. "200", "1000", "1UP")
     ctx.font = 'bold 8px monospace';
     ctx.textBaseline = 'top';
     for (const popup of collisionSolver.scorePopups) {
@@ -92,7 +115,7 @@ export class Renderer {
       ctx.fillText(popup.text, sx, sy);
     }
 
-    // 8. Render Classic NES Top HUD Bar (MARIO | COINS | WORLD | TIME)
+    // 9. Render Classic NES Top HUD Bar (MARIO | COINS | WORLD | TIME)
     this.renderNesHud(ctx, hud, palette);
   }
 

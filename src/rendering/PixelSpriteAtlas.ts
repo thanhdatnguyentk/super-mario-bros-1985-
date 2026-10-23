@@ -471,3 +471,185 @@ export function drawTile16x16(
       break;
   }
 }
+
+export type RenderableItemKind =
+  | 'super-mushroom'
+  | 'fire-flower'
+  | 'starman'
+  | 'one-up';
+
+/**
+ * Render 16×16 NES Power-Up Item Sprites (Super Mushroom, 1-Up Mushroom, Fire Flower, Starman).
+ */
+export function drawPowerUpItemSprite(
+  ctx: CanvasRenderingContext2D,
+  kind: RenderableItemKind,
+  screenX: number,
+  screenY: number,
+  animFrame: number
+): void {
+  const x = Math.round(screenX);
+  const y = Math.round(screenY);
+
+  if (kind === 'super-mushroom' || kind === 'one-up') {
+    const capMain = kind === 'super-mushroom' ? '#D82800' : '#00A800';
+    const capSpot = kind === 'super-mushroom' ? '#FC9838' : '#FCFCFC';
+    const stemSkin = '#FC9838';
+
+    // Rounded Mushroom Cap (top 10px)
+    ctx.fillStyle = capMain;
+    ctx.fillRect(x + 4, y + 1, 8, 2);
+    ctx.fillRect(x + 2, y + 3, 12, 3);
+    ctx.fillRect(x + 1, y + 6, 14, 4);
+
+    // Classic NES Mushroom Spots
+    ctx.fillStyle = capSpot;
+    ctx.fillRect(x + 3, y + 3, 3, 3);
+    ctx.fillRect(x + 10, y + 3, 3, 3);
+    ctx.fillRect(x + 6, y + 6, 4, 3);
+
+    // Stem & Eyes (bottom 5px)
+    ctx.fillStyle = stemSkin;
+    ctx.fillRect(x + 4, y + 10, 8, 5);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x + 6, y + 11, 1, 2);
+    ctx.fillRect(x + 9, y + 11, 1, 2);
+    return;
+  }
+
+  if (kind === 'fire-flower') {
+    const phase = Math.floor(animFrame / 4) % 4;
+    const outerColors = ['#D82800', '#FC9838', '#FCFCFC', '#80D010'];
+    const innerColors = ['#FC9838', '#FCFCFC', '#D82800', '#FC9838'];
+
+    // Flower Head Outer Ring
+    ctx.fillStyle = outerColors[phase];
+    ctx.fillRect(x + 3, y + 1, 10, 8);
+    ctx.fillRect(x + 2, y + 2, 12, 6);
+
+    // Flower Head Inner Ring
+    ctx.fillStyle = innerColors[phase];
+    ctx.fillRect(x + 5, y + 3, 6, 4);
+
+    // White Center Core
+    ctx.fillStyle = '#FCFCFC';
+    ctx.fillRect(x + 6, y + 4, 4, 2);
+
+    // Green Stem & Side Leaves
+    ctx.fillStyle = '#00A800';
+    ctx.fillRect(x + 7, y + 9, 2, 6);
+    ctx.fillStyle = '#80D010';
+    ctx.fillRect(x + 3, y + 11, 3, 2);
+    ctx.fillRect(x + 10, y + 11, 3, 2);
+    return;
+  }
+
+  if (kind === 'starman') {
+    const phase = Math.floor(animFrame / 2) % 4;
+    const bodyColors = ['#FC9838', '#FCFCFC', '#D82800', '#80D010'];
+    const trimColors = ['#D82800', '#FC9838', '#FCFCFC', '#00A800'];
+
+    // 5-Pointed Star Silhouette
+    ctx.fillStyle = trimColors[phase];
+    ctx.fillRect(x + 7, y + 1, 2, 3);
+    ctx.fillRect(x + 2, y + 5, 12, 3);
+    ctx.fillRect(x + 4, y + 8, 8, 3);
+    ctx.fillRect(x + 3, y + 11, 3, 4);
+    ctx.fillRect(x + 10, y + 11, 3, 4);
+
+    ctx.fillStyle = bodyColors[phase];
+    ctx.fillRect(x + 6, y + 3, 4, 7);
+    ctx.fillRect(x + 4, y + 6, 8, 2);
+
+    // Star Eyes
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(x + 6, y + 6, 1, 2);
+    ctx.fillRect(x + 9, y + 6, 1, 2);
+  }
+}
+
+/**
+ * Render Spinning Coin launched out of a Question Block or Multi-Coin Brick.
+ */
+export function drawSpinningCoinSprite(
+  ctx: CanvasRenderingContext2D,
+  screenX: number,
+  screenY: number,
+  animFrame: number
+): void {
+  const x = Math.round(screenX);
+  const y = Math.round(screenY);
+  const phase = Math.floor(animFrame / 2) % 4;
+  const widths = [8, 4, 2, 4];
+  const w = widths[phase];
+  const offsetX = Math.floor((8 - w) / 2);
+
+  ctx.fillStyle = '#FC9838';
+  ctx.fillRect(x + offsetX, y, w, 14);
+  if (w >= 4) {
+    ctx.fillStyle = '#FCFCFC';
+    ctx.fillRect(x + offsetX + 1, y + 2, 1, 10);
+  }
+}
+
+/**
+ * Render Climbing Vine / Beanstalk Segment & Top Leaf Head.
+ */
+export function drawVineSprite(
+  ctx: CanvasRenderingContext2D,
+  screenX: number,
+  topScreenY: number,
+  bottomScreenY: number
+): void {
+  const x = Math.round(screenX);
+  const topY = Math.round(topScreenY);
+  const botY = Math.round(bottomScreenY);
+  if (botY <= topY) return;
+
+  // Main Stem
+  ctx.fillStyle = '#00A800';
+  ctx.fillRect(x + 7, topY, 2, botY - topY);
+
+  // Alternating Leaves every 8px
+  ctx.fillStyle = '#80D010';
+  for (let ly = topY + 4; ly < botY - 4; ly += 8) {
+    const isLeft = Math.floor((ly - topY) / 8) % 2 === 0;
+    if (isLeft) {
+      ctx.fillRect(x + 3, ly, 4, 3);
+    } else {
+      ctx.fillRect(x + 9, ly, 4, 3);
+    }
+  }
+
+  // Vine Crown
+  ctx.fillStyle = '#80D010';
+  ctx.fillRect(x + 5, topY, 6, 4);
+}
+
+/**
+ * Render Fireball Wall-Hit Starburst Explosion (3 expanding 8-bit frames).
+ */
+export function drawFireballExplosionSprite(
+  ctx: CanvasRenderingContext2D,
+  screenX: number,
+  screenY: number,
+  stage: 0 | 1 | 2
+): void {
+  const x = Math.round(screenX);
+  const y = Math.round(screenY);
+  const radius = stage === 0 ? 4 : stage === 1 ? 6 : 8;
+
+  ctx.fillStyle = '#D82800';
+  ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+  ctx.fillStyle = '#FC9838';
+  ctx.fillRect(
+    x - Math.floor(radius * 0.6),
+    y - Math.floor(radius * 0.6),
+    Math.floor(radius * 1.2),
+    Math.floor(radius * 1.2)
+  );
+  if (stage < 2) {
+    ctx.fillStyle = '#FCFCFC';
+    ctx.fillRect(x - 2, y - 2, 4, 4);
+  }
+}

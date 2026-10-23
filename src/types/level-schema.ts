@@ -231,6 +231,7 @@ export interface SubWorldArea {
   bgPreset: BgSceneryPreset;
   music: MusicTrackId;
   widthCols: number;
+  scrollLocked?: boolean;
   /** Exactly 15 rows of length `widthCols` representing 256×240 vertical height */
   tileMatrix: string[];
   blockContents: BlockContentOverride[];
@@ -265,6 +266,7 @@ export interface LevelDefinition {
   pipes: WarpPipePortal[];
   platforms: MovingPlatformSpawn[];
   fireBars: FireBarSpawn[];
+  warpZone?: WarpZoneConfig;
   castleMazeLoop?: CastleMazeCheckpoint[];
   enemies: EnemySpawn[];
   goal: {

@@ -139,6 +139,64 @@ function buildWorld1_1Matrix(widthCols: number): string[] {
   return grid.map((row) => row.join(''));
 }
 
+/**
+ * Authentic World 1-1 Underground Coin Bonus Room ('1-1-bonus', 16×15 tiles).
+ * Features left brick wall, ceiling bricks, 3-tier brick platform, 19 floating coins,
+ * and right-side horizontal exit pipe leading back to World 1-1 Col 163 Pipe #5.
+ */
+function buildWorld1_1BonusRoomMatrix(): string[] {
+  const widthCols = 16;
+  const grid: string[][] = Array.from({ length: GRID_ROWS }, () =>
+    Array.from({ length: widthCols }, () => '.')
+  );
+
+  const setTile = (col: number, row: number, ch: string) => {
+    if (col >= 0 && col < widthCols && row >= 0 && row < GRID_ROWS) {
+      grid[row][col] = ch;
+    }
+  };
+
+  // 1. Floor (Rows 13 & 14)
+  for (let c = 0; c < widthCols; c++) {
+    setTile(c, 13, '#');
+    setTile(c, 14, '#');
+  }
+
+  // 2. Left Brick Wall (Col 0, Rows 2..12) & Ceiling Brick Bar (Row 1, Cols 4..10)
+  for (let r = 2; r <= 12; r++) {
+    setTile(0, r, 'B');
+  }
+  for (let c = 4; c <= 10; c++) {
+    setTile(c, 1, 'B');
+  }
+
+  // 3. Central 7×3 Brick Platform (Cols 4..10, Rows 10..12)
+  for (let r = 10; r <= 12; r++) {
+    for (let c = 4; c <= 10; c++) {
+      setTile(c, r, 'B');
+    }
+  }
+
+  // 4. 19 Floating Coins in 3 rows (Rows 5, 7, 9 above the central brick platform)
+  for (let c = 5; c <= 9; c++) {
+    setTile(c, 5, 'C');
+  }
+  for (let c = 4; c <= 10; c++) {
+    setTile(c, 7, 'C');
+    setTile(c, 9, 'C');
+  }
+
+  // 5. Right-side Exit Pipe (Horizontal Mouth at Col 13, Rows 11..12 + Vertical Shaft at Cols 14..15, Rows 2..12)
+  setTile(13, 11, 'P');
+  setTile(13, 12, '[');
+  for (let r = 2; r <= 12; r++) {
+    setTile(14, r, '[');
+    setTile(15, r, ']');
+  }
+
+  return grid.map((row) => row.join(''));
+}
+
 export const WORLD_1_1_LEVEL: LevelDefinition = {
   id: '1-1',
   world: 1,
@@ -162,7 +220,28 @@ export const WORLD_1_1_LEVEL: LevelDefinition = {
     { col: 101, row: 9, payload: 'starman' },
     { col: 109, row: 5, payload: 'powerup-progressive' },
   ],
-  pipes: [],
+  pipes: [
+    {
+      id: 'pipe-1-1-quick-bonus',
+      enterCol: 28,
+      enterRow: 11,
+      enterDirection: 'down',
+      targetAreaId: '1-1-bonus',
+      exitCol: 2,
+      exitRow: 2,
+      exitDirection: 'drop-from-ceiling',
+    },
+    {
+      id: 'pipe-1-1-canonical-bonus',
+      enterCol: 57,
+      enterRow: 9,
+      enterDirection: 'down',
+      targetAreaId: '1-1-bonus',
+      exitCol: 2,
+      exitRow: 2,
+      exitDirection: 'drop-from-ceiling',
+    },
+  ],
   platforms: [],
   fireBars: [],
   enemies: [],
@@ -171,5 +250,30 @@ export const WORLD_1_1_LEVEL: LevelDefinition = {
     flagpoleCol: 198,
     castleDoorCol: 204,
   },
-  subWorlds: {},
+  subWorlds: {
+    '1-1-bonus': {
+      id: '1-1-bonus',
+      biome: 'underground',
+      bgPreset: 'underground-brick',
+      music: 'underground',
+      widthCols: 16,
+      scrollLocked: true,
+      tileMatrix: buildWorld1_1BonusRoomMatrix(),
+      blockContents: [],
+      pipes: [
+        {
+          id: 'pipe-1-1-bonus-exit',
+          enterCol: 13,
+          enterRow: 11,
+          enterDirection: 'right',
+          targetAreaId: 'main',
+          exitCol: 163,
+          exitRow: 11,
+          exitDirection: 'up',
+        },
+      ],
+      platforms: [],
+      enemies: [],
+    },
+  },
 };

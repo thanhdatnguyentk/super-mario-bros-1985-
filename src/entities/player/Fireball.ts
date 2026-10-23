@@ -7,6 +7,7 @@ import {
 import { applyGravityAndClampSub } from '../../physics/SubPixelPhysics.ts';
 import type { TileCollisionSolver } from '../../physics/TileCollisionSolver.ts';
 import type { Camera } from '../../core/Camera.ts';
+import type { EventBus } from '../../core/EventBus.ts';
 
 /**
  * Fire Mario's bouncing Fireball projectile.
@@ -20,12 +21,14 @@ export class Fireball extends Entity {
   public explodeFrame = 0;
   public animTick = 0;
   private collisionSolver: TileCollisionSolver;
+  private eventBus?: EventBus;
 
   constructor(
     xPx: number,
     yPx: number,
     direction: FacingDirection,
-    collisionSolver: TileCollisionSolver
+    collisionSolver: TileCollisionSolver,
+    eventBus?: EventBus
   ) {
     super(xPx, yPx, 8, 8, {
       offsetX: 1,
@@ -37,6 +40,7 @@ export class Fireball extends Entity {
     this.vxSub = direction * NES_PHYSICS.FIREBALL_SPEED_X;
     this.vySub = NES_PHYSICS.FIREBALL_SPEED_X * 0.5;
     this.collisionSolver = collisionSolver;
+    this.eventBus = eventBus;
   }
 
   public triggerExplosion(): void {
@@ -45,6 +49,10 @@ export class Fireball extends Entity {
     this.explodeFrame = 0;
     this.vxSub = 0;
     this.vySub = 0;
+    this.eventBus?.emit('fireball-exploded', {
+      worldX: this.x,
+      worldY: this.y,
+    });
   }
 
   public update(): void {

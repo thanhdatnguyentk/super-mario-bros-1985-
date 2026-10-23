@@ -447,7 +447,8 @@ export class Mario extends Entity {
       spawnX,
       spawnY,
       this.facing,
-      this.collisionSolver
+      this.collisionSolver,
+      this.eventBus
     );
     this.fireballs.push(fb);
     this.fireThrowPoseTimer = 8;

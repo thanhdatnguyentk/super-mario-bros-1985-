@@ -5,11 +5,20 @@ import {
 } from '../types/physics-constants.ts';
 import { pxToSub } from './SubPixelPhysics.ts';
 import type {
+  BlockContentOverride,
   BlockPayloadType,
   LevelDefinition,
 } from '../types/level-schema.ts';
 import type { Entity } from '../ecs/Entity.ts';
 import type { EventBus } from '../core/EventBus.ts';
+
+export interface TilemapStateSnapshot {
+  widthCols: number;
+  grid: string[][];
+  blockContents: Array<[string, BlockPayloadType]>;
+  blockTargetSubworlds: Array<[string, string]>;
+  multiCoinRemaining: Array<[string, number]>;
+}
 
 export interface ActiveBumpAnimation {
   col: number;
@@ -54,6 +63,7 @@ export class TileCollisionSolver {
   private grid: string[][] = [];
   private widthCols = 0;
   private blockContents = new Map<string, BlockPayloadType>();
+  private blockTargetSubworlds = new Map<string, string>();
   private multiCoinRemaining = new Map<string, number>();
   public readonly activeBumps = new Map<string, ActiveBumpAnimation>();
   public readonly debrisParticles: BrickDebrisParticle[] = [];
@@ -65,10 +75,18 @@ export class TileCollisionSolver {
   }
 
   public loadLevelGrid(level: LevelDefinition): void {
-    this.widthCols = level.widthCols;
+    this.loadAreaGrid(level.widthCols, level.tileMatrix, level.blockContents);
+  }
+
+  public loadAreaGrid(
+    widthCols: number,
+    tileMatrix: string[],
+    blockContents: BlockContentOverride[]
+  ): void {
+    this.widthCols = widthCols;
     this.grid = [];
     for (let r = 0; r < GRID_ROWS; r++) {
-      const rowStr = level.tileMatrix[r] ?? '';
+      const rowStr = tileMatrix[r] ?? '';
       const rowChars: string[] = [];
       for (let c = 0; c < this.widthCols; c++) {
         rowChars.push(rowStr[c] ?? '.');
@@ -77,18 +95,43 @@ export class TileCollisionSolver {
     }
 
     this.blockContents.clear();
+    this.blockTargetSubworlds.clear();
     this.multiCoinRemaining.clear();
     this.activeBumps.clear();
     this.debrisParticles.length = 0;
     this.scorePopups.length = 0;
 
-    for (const item of level.blockContents) {
+    for (const item of blockContents) {
       const key = this.key(item.col, item.row);
       this.blockContents.set(key, item.payload);
+      if (item.targetSubworldId) {
+        this.blockTargetSubworlds.set(key, item.targetSubworldId);
+      }
       if (item.payload === 'multi-coin-10') {
         this.multiCoinRemaining.set(key, 10);
       }
     }
+  }
+
+  public exportStateSnapshot(): TilemapStateSnapshot {
+    return {
+      widthCols: this.widthCols,
+      grid: this.grid.map((row) => [...row]),
+      blockContents: Array.from(this.blockContents.entries()),
+      blockTargetSubworlds: Array.from(this.blockTargetSubworlds.entries()),
+      multiCoinRemaining: Array.from(this.multiCoinRemaining.entries()),
+    };
+  }
+
+  public restoreStateSnapshot(snapshot: TilemapStateSnapshot): void {
+    this.widthCols = snapshot.widthCols;
+    this.grid = snapshot.grid.map((row) => [...row]);
+    this.blockContents = new Map(snapshot.blockContents);
+    this.blockTargetSubworlds = new Map(snapshot.blockTargetSubworlds);
+    this.multiCoinRemaining = new Map(snapshot.multiCoinRemaining);
+    this.activeBumps.clear();
+    this.debrisParticles.length = 0;
+    this.scorePopups.length = 0;
   }
 
   private key(col: number, row: number): string {
@@ -375,6 +418,7 @@ export class TileCollisionSolver {
   ): void {
     const key = this.key(col, row);
     const payload = this.blockContents.get(key);
+    const targetSubworldId = this.blockTargetSubworlds.get(key);
     const worldX = col * TILE_SIZE;
     const worldY = row * TILE_SIZE;
 
@@ -383,18 +427,12 @@ export class TileCollisionSolver {
       this.triggerBumpAnimation(col, row);
       const resolvedPayload = payload ?? 'coin';
       if (resolvedPayload === 'coin') {
-        this.addScorePopup(worldX, worldY - 12, '200');
         this.eventBus.emit('coin-collected', {
           worldX,
           worldY: worldY - 16,
           points: 200,
+          fromBlock: true,
         });
-      } else {
-        this.addScorePopup(
-          worldX,
-          worldY - 12,
-          resolvedPayload === 'one-up' ? '1UP' : '1000'
-        );
       }
       this.eventBus.emit('block-bumped', {
         col,
@@ -402,6 +440,7 @@ export class TileCollisionSolver {
         tileChar,
         powerState,
         payload: resolvedPayload,
+        targetSubworldId,
       });
       return;
     }
@@ -412,11 +451,18 @@ export class TileCollisionSolver {
         const rem = (this.multiCoinRemaining.get(key) ?? 1) - 1;
         this.multiCoinRemaining.set(key, rem);
         this.triggerBumpAnimation(col, row);
-        this.addScorePopup(worldX, worldY - 12, '200');
         this.eventBus.emit('coin-collected', {
           worldX,
           worldY: worldY - 16,
           points: 200,
+          fromBlock: true,
+        });
+        this.eventBus.emit('block-bumped', {
+          col,
+          row,
+          tileChar,
+          powerState,
+          payload: 'multi-coin-10',
         });
         if (rem <= 0) {
           this.setTile(col, row, 'M');
@@ -427,17 +473,13 @@ export class TileCollisionSolver {
       if (payload) {
         this.setTile(col, row, 'M');
         this.triggerBumpAnimation(col, row);
-        this.addScorePopup(
-          worldX,
-          worldY - 12,
-          payload === 'one-up' ? '1UP' : '1000'
-        );
         this.eventBus.emit('block-bumped', {
           col,
           row,
           tileChar,
           powerState,
           payload,
+          targetSubworldId,
         });
         return;
       }
