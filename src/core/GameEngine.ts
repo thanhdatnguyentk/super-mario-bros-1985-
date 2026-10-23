@@ -164,11 +164,12 @@ export class GameEngine {
       }
     });
 
-    this.eventBus.on('area-switched', ({ areaId }) => {
+    this.eventBus.on('area-switched', ({ areaId, exitCol }) => {
       this.platformController.loadPlatforms(
         this.tilemapLoader.activeArea.platforms
       );
       if (areaId === 'main') {
+        this.castleMazeController.markCheckpointsBeforeColPassed(exitCol);
         this.enemyManager.loadAreaEnemies(
           this.currentLevel.enemies,
           this.currentLevel.fireBars

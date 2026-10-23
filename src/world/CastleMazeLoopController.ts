@@ -35,6 +35,14 @@ export class CastleMazeLoopController {
     this.loopRewindCount = 0;
   }
 
+  public markCheckpointsBeforeColPassed(col: number): void {
+    for (const cp of this.checkpoints) {
+      if (cp.checkCol < col) {
+        this.passedCheckpoints.add(cp.checkCol);
+      }
+    }
+  }
+
   public update(mario: Mario, camera: Camera): void {
     if (!mario.alive || this.checkpoints.length === 0) return;
 
