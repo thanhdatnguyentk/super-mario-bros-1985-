@@ -5,6 +5,8 @@ import { WORLD_1_LEVELS } from '../levels/World1Levels.ts';
 import { WORLD_2_LEVELS } from '../levels/World2Levels.ts';
 import { WORLD_3_LEVELS } from '../levels/World3Levels.ts';
 import { WORLD_4_LEVELS } from '../levels/World4Levels.ts';
+import { WORLD_5_LEVELS } from '../levels/World5Levels.ts';
+import { WORLD_6_LEVELS } from '../levels/World6Levels.ts';
 
 export const CANONICAL_STAGE_ORDER: readonly LevelId[] = [
   '1-1',
@@ -65,6 +67,8 @@ export class LevelManager {
       ...WORLD_2_LEVELS,
       ...WORLD_3_LEVELS,
       ...WORLD_4_LEVELS,
+      ...WORLD_5_LEVELS,
+      ...WORLD_6_LEVELS,
     ];
     this.registerLevels(defaults);
   }
