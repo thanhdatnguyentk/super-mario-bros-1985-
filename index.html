@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Super Mario Bros. (1985) — Authentic NES Remake</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: radial-gradient(circle at top, #181c2b 0%, #090b12 100%);
+        color: #f8fafc;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        gap: 14px;
+      }
+      .header-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        max-width: 768px;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+      }
+      .header-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #facc15;
+        letter-spacing: 0.05em;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .btn {
+        background: #1e293b;
+        color: #e2e8f0;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        padding: 5px 10px;
+        font-family: inherit;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.12s ease;
+      }
+      .btn:hover {
+        background: #334155;
+        border-color: #38bdf8;
+        color: #ffffff;
+      }
+      .nes-frame {
+        padding: 12px;
+        border-radius: 16px;
+        background: #05070d;
+        border: 2px solid #334155;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+      }
+      #nes-canvas {
+        width: 768px;
+        height: 720px;
+        max-width: calc(100vw - 48px);
+        max-height: 72vh;
+        aspect-ratio: 256 / 240;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        display: block;
+        border-radius: 6px;
+        background: #5c94fc;
+      }
+      .telemetry-grid {
+        width: 100%;
+        max-width: 768px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        font-size: 11px;
+      }
+      .tel-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .tel-label {
+        color: #94a3b8;
+      }
+      .tel-val {
+        color: #38bdf8;
+        font-weight: 700;
+      }
+      .controls-footer {
+        width: 100%;
+        max-width: 768px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 11px;
+        color: #cbd5e1;
+      }
+      .vpad {
+        display: flex;
+        gap: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header-bar">
+      <div class="header-title">SUPER MARIO BROS. (1985) · PHASE 1 ENGINE &amp; SUB-PIXEL PHYSICS</div>
+      <div class="toolbar">
+        <button id="btn-small" class="btn" type="button">[1] Small</button>
+        <button id="btn-super" class="btn" type="button">[2] Super</button>
+        <button id="btn-fire" class="btn" type="button">[3] Fire</button>
+        <button id="btn-star" class="btn" type="button">[I] Starman</button>
+        <button id="btn-water" class="btn" type="button">Swim Mode</button>
+        <button id="btn-reset" class="btn" type="button">[R] Reset 1-1</button>
+      </div>
+    </header>
+
+    <div class="nes-frame">
+      <canvas id="nes-canvas" width="256" height="240" tabindex="0"></canvas>
+    </div>
+
+    <section class="telemetry-grid" aria-label="Sub-Pixel Physics Telemetry">
+      <div class="tel-item">
+        <span class="tel-label">POS (X, Y):</span>
+        <span id="tel-pos" class="tel-val">48, 192 px</span>
+      </div>
+      <div class="tel-item">
+        <span class="tel-label">VELOCITY:</span>
+        <span id="tel-vel" class="tel-val">vx: 0.00 | vy: 0.00</span>
+      </div>
+      <div class="tel-item">
+        <span class="tel-label">STATE / POSE:</span>
+        <span id="tel-state" class="tel-val">SMALL · idle</span>
+      </div>
+      <div class="tel-item">
+        <span class="tel-label">JUMP BRACKET:</span>
+        <span id="tel-jump" class="tel-val">SLOW (GROUND)</span>
+      </div>
+      <div class="tel-item">
+        <span class="tel-label">CAMERA X:</span>
+        <span id="tel-cam" class="tel-val">0 px (One-Way →)</span>
+      </div>
+      <div class="tel-item">
+        <span class="tel-label">FIREBALLS:</span>
+        <span id="tel-fire" class="tel-val">0 / 2</span>
+      </div>
+    </section>
+
+    <footer class="controls-footer">
+      <div>
+        <strong>Controls:</strong> [←/→ or A/D] Move · [Shift/X/J] Run &amp; Fireball (B) · [Space/Z/K] Variable Jump (A) · [↓/S] Crouch · [Enter] Pause
+      </div>
+      <div class="vpad">
+        <button id="vbtn-left" class="btn" type="button">◀</button>
+        <button id="vbtn-down" class="btn" type="button">▼</button>
+        <button id="vbtn-right" class="btn" type="button">▶</button>
+        <button id="vbtn-run" class="btn" type="button">B (Run/Fire)</button>
+        <button id="vbtn-jump" class="btn" type="button">A (Jump)</button>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
